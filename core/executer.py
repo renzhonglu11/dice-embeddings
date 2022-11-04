@@ -344,6 +344,7 @@ class Execute:
         :return: trained BASEKGE
         """
         # (1) Select model and labelling : Entity Prediction or Relation Prediction.
+        # TODO: add models from pykeen (here )
         model, form_of_labelling = select_model(vars(self.args), self.is_continual_training, self.storage_path)
         print(f'KvsAll training starts: {model.name}')  # -labeling:{form_of_labelling}')
         # (2) Create training data.
@@ -358,6 +359,7 @@ class Execute:
                                      num_workers=self.args.num_core,
                                      label_smoothing_rate=self.args.label_smoothing_rate)
         # (3) Train model.
+        # TODO: create TripleFactory for the models from pykeen
         train_dataloaders = dataset.train_dataloader()
         # Release some memory
         del dataset

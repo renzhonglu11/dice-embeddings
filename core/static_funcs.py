@@ -159,6 +159,7 @@ def model_fitting(trainer, model, train_dataloaders) -> None:
     print(f'Number of epochs:{trainer.max_epochs}')
     print(f'Number of mini-batches to compute for a single epoch: {len(train_dataloaders)}')
     print(f'Learning rate:{model.learning_rate}\n')
+    # TODO: models from pykeen need to inherit BaseKGE so that it can be adapted by the trainer
     trainer.fit(model, train_dataloaders=train_dataloaders)
     print(f'Model fitting is done!')
 
