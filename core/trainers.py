@@ -44,7 +44,7 @@ class AbstractTrainer:
 
 class DataParallelTrainer(AbstractTrainer):
     """ A Trainer based on torch.nn.DataParallel (https://pytorch.org/docs/stable/generated/torch.nn.DataParallel.html)"""
-
+    
     def __init__(self, args, callbacks):
         super().__init__(args, callbacks)
         self.device = torch.device("cuda:0" if torch.cuda.is_available() else "cpu")
@@ -64,7 +64,7 @@ class DataParallelTrainer(AbstractTrainer):
         self.model = model
         print(kwargs)
         dataset = kwargs['train_dataloaders'].dataset
-        self.loss_function = model.loss_function
+        self.loss_function = model.loss_function # ？
         self.optimizer = model.configure_optimizers()
         self.model = torch.nn.DataParallel(model)
         self.model.to(self.device)

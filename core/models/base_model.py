@@ -191,6 +191,7 @@ class BaseKGE(pl.LightningModule):
         else:
             print(len(batch))
             raise ValueError('Unexpected batch shape..')
+            
         train_loss = self.loss_function(yhat_batch=yhat_batch, y_batch=y_batch)
         return train_loss
 

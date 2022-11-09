@@ -25,6 +25,9 @@ from core.typings import *
 from core.static_funcs import *
 from core.sanity_checkers import *
 
+from pykeen.triples.triples_factory import TriplesFactory
+
+
 logging.getLogger('pytorch_lightning').setLevel(0)
 warnings.simplefilter(action="ignore", category=UserWarning)
 warnings.filterwarnings(action="ignore", category=DeprecationWarning)
@@ -74,6 +77,7 @@ class Execute:
         self.args.num_entities, self.args.num_relations = self.dataset.num_entities, self.dataset.num_relations
         # (3) Sanity checking.
         self.args, self.dataset = config_kge_sanity_checking(self.args, self.dataset)
+
 
     def load_indexed_data(self) -> None:
         """ Load Indexed Data"""
@@ -201,6 +205,7 @@ class Execute:
         x is an input is a head-entity & relation pair
         y is a one-hot vector
         """
+        
         model, form_of_labelling = select_model(vars(self.args), self.is_continual_training, self.storage_path)
         print(f'Conformal Credal Self Training starts: {model.name}')
         # Split the training triples into train, calibration and unlabelled.
@@ -300,7 +305,7 @@ class Execute:
                                      batch_size=self.args.batch_size,
                                      num_workers=self.args.num_core)
 
-        # Define a new raining set
+        # Define a new training set
         def training_step(self, batch, batch_idx):
             # (1) SUPERVISED PART
             # (1.1) Extract inputs and labels from a given batch
@@ -359,7 +364,7 @@ class Execute:
                                      num_workers=self.args.num_core,
                                      label_smoothing_rate=self.args.label_smoothing_rate)
         # (3) Train model.
-        # TODO: create TripleFactory for the models from pykeen
+       
         train_dataloaders = dataset.train_dataloader()
         # Release some memory
         del dataset

@@ -24,7 +24,9 @@ from .sanity_checkers import sanity_checking_with_arguments
 from pytorch_lightning.strategies.ddp import DDPStrategy
 
 
+
 # @TODO: Could these funcs can be merged?
+# TODO: args may need to have instance of TripleFatcory
 def select_model(args: dict, is_continual_training: bool = None, storage_path: str = None):
     isinstance(args, dict)
     assert len(args) > 0
@@ -559,11 +561,17 @@ def create_experiment_folder(folder_name='Experiments'):
     os.makedirs(path_of_folder)
     return path_of_folder
 
-
+ 
 def intialize_model(args: dict) -> Tuple[pl.LightningModule, AnyStr]:
     print('Initializing the selected model...', end=' ')
     start_time = time.time()
     model_name = args['model']
+    use_pykeen = args['use_pykeen']
+    # TODO: create TripleFactory if the models of pykeen are chosen
+    if use_pykeen:
+        model = Pykeen_model(model_name,args=args)
+        model.select_model()
+        return model
     if model_name == 'KronELinear':
         model = KronELinear(args=args)
         form_of_labelling = 'EntityPrediction'
@@ -610,6 +618,14 @@ def intialize_model(args: dict) -> Tuple[pl.LightningModule, AnyStr]:
     elif model_name == 'TransE':
         model = TransE(args=args)
         form_of_labelling = 'EntityPrediction'
+    elif model_name == 'TransE':
+        # TODO: create the corresponding model of pykeen
+        '''
+        1. create an instance of TripleFactory(not really possible),
+           better to add TripleFatcory to args 
+        2. create ERModel of corresponding model
+        '''
+        pass
     else:
         raise ValueError
     print(f'Done! {time.time() - start_time:.3f}')

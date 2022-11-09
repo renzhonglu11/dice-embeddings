@@ -29,6 +29,8 @@ def argparse_default(description=None):
                         default="TransE",
                         help="Available models: ConEx, ConvQ, ConvO,  QMult, OMult, "
                              "Shallom, ConEx, ComplEx, DistMult")
+    parser.add_argument("--use_pykeen", type=bool, default=False,
+                        help='to use the models of pykken')  
     parser.add_argument('--optim', type=str, default='Adam',
                         help='[NAdam, Adam, SGD]')
     parser.add_argument('--embedding_dim', type=int, default=10,
@@ -74,6 +76,7 @@ def argparse_default(description=None):
                         help='A flag for using train data to evaluation ')
     parser.add_argument("--eval_with_constraint", type=bool, default=False,
                         help='Filter entities not belonging to the range or domain of a relation.')
+                  
     if description is None:
         return parser.parse_args()
     return parser.parse_args(description)
