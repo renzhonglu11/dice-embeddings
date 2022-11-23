@@ -24,5 +24,6 @@ class TestPykeenModel:
         args.read_only_few = None
         args.sample_triples_ratio = None
         args.torch_trainer = 'None'
+        args.neg_ratio = 1
         
         Execute(args).start()
