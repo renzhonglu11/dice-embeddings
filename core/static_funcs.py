@@ -11,14 +11,12 @@ import pytorch_lightning as pl
 import sys
 from .helper_classes import CustomArg
 from .models import *
-from .trainers import DataParallelTrainer, DistributedDataParallelTrainer
 import time
 import pandas as pd
 import json
 import glob
 import pandas
 from .sanity_checkers import sanity_checking_with_arguments
-from pytorch_lightning.strategies import DDPStrategy
 
 from pykeen.contrib.lightning import SLCWALitModule
 from pykeen.datasets.base import Dataset, PathDataset
@@ -185,23 +183,6 @@ def model_fitting(trainer, model, train_dataloaders) -> None:
     print(f"Model fitting is done!")
 
 
-def initialize_trainer(args, callbacks: List, plugins: List) -> pl.Trainer:
-    """ Initialize Trainer from input arguments """
-    if args.torch_trainer == "DataParallelTrainer":
-        print("Initialize DataParallelTrainer Trainer")
-        return DataParallelTrainer(args, callbacks=callbacks)
-    elif args.torch_trainer == "DistributedDataParallelTrainer":
-        return DistributedDataParallelTrainer(args, callbacks=callbacks)
-    else:
-        print("Initialize Pytorch-lightning Trainer")
-        # Pytest with PL problem https://github.com/pytest-dev/pytest/discussions/7995
-        return pl.Trainer.from_argparse_args(
-            args,
-            strategy=DDPStrategy(find_unused_parameters=False),
-            plugins=plugins,
-            callbacks=callbacks,
-        )
-
 
 def preprocess_modin_dataframe_of_kg(df, read_only_few: int = None, sample_triples_ratio: float = None):
     """ Preprocess a modin dataframe to pandas dataframe """
@@ -232,8 +213,8 @@ def preprocess_modin_dataframe_of_kg(df, read_only_few: int = None, sample_tripl
     return df._to_pandas()
 
 
-def preprocess_dataframe_of_kg(df, read_only_few: int = None,
-                               sample_triples_ratio: float = None):
+def old_preprocess_dataframe_of_kg(df, read_only_few: int = None,
+                                   sample_triples_ratio: float = None):
     """ Preprocess lazy loaded dask dataframe
     (1) Read only few triples
     (2) Sample few triples
@@ -277,12 +258,42 @@ def preprocess_dataframe_of_kg(df, read_only_few: int = None,
     return df
 
 
-def load_data_parallel(
-    data_path,
-    read_only_few: int = None,
-    sample_triples_ratio: float = None,
-    backend=None,
-):
+def preprocess_dataframe_of_kg(df, read_only_few: int = None,
+                               sample_triples_ratio: float = None):
+    """ Preprocess lazy loaded dask dataframe
+    (1) Read only few triples
+    (2) Sample few triples
+    (3) Remove **<>** if exists.
+    """
+    """
+    try:
+        assert isinstance(df, dask.dataframe.core.DataFrame) or isinstance(df, pandas.DataFrame)
+    except AssertionError:
+        raise AssertionError(type(df))
+    """
+
+    # (2)a Read only few if it is asked.
+    if isinstance(read_only_few, int):
+        if read_only_few > 0:
+            print(f'Reading only few input data {read_only_few}...')
+            df = df.head(read_only_few)
+            print('Done !\n')
+    # (3) Read only sample
+    if sample_triples_ratio:
+        print(f'Subsampling {sample_triples_ratio} of input data...')
+        df = df.sample(frac=sample_triples_ratio)
+        print('Done !\n')
+    if sum(df.head()["subject"].str.startswith('<')) + sum(df.head()["relation"].str.startswith('<')) > 2:
+        # (4) Drop Rows/triples with double or boolean: Example preprocessing
+        # Drop of object does not start with **<**.
+        # Specifying na to be False instead of NaN.
+        print('Removing triples with literal values...')
+        df = df[df["object"].str.startswith('<', na=False)]
+        print('Done !\n')
+    return df
+
+def load_data_parallel(data_path, read_only_few: int = None,
+                       sample_triples_ratio: float = None, backend=None):
     """
     Parse KG via DASK.
     :param read_only_few:
@@ -296,21 +307,27 @@ def load_data_parallel(
     if glob.glob(data_path):
         if backend == "modin":
             import modin.pandas as pd
-            df = pd.read_csv(data_path,
-                             delim_whitespace=True,
-                             header=None,
-                             usecols=[0, 1, 2],
-                             names=['subject', 'relation', 'object'],
-                             dtype=str)
+            if data_path[-3:] in ['txt', 'csv']:
+                df = pd.read_csv(data_path,
+                                 delim_whitespace=True,
+                                 header=None,
+                                 usecols=[0, 1, 2],
+                                 names=['subject', 'relation', 'object'],
+                                 dtype=str)
+            else:
+                df = pd.read_parquet(data_path, engine='pyarrow')
             return preprocess_modin_dataframe_of_kg(df, read_only_few, sample_triples_ratio)
         elif backend == 'pandas':
             import pandas as pd
-            df = pd.read_csv(data_path,
-                             delim_whitespace=True,
-                             header=None,
-                             usecols=[0, 1, 2],
-                             names=['subject', 'relation', 'object'],
-                             dtype=str)
+            if data_path[-3:] in ['txt', 'csv']:
+                df = pd.read_csv(data_path,
+                                 delim_whitespace=True,
+                                 header=None,
+                                 usecols=[0, 1, 2],
+                                 names=['subject', 'relation', 'object'],
+                                 dtype=str)
+            else:
+                df = pd.read_parquet(data_path, engine='pyarrow')
             return preprocess_dataframe_of_kg(df, read_only_few, sample_triples_ratio)
         else:
             raise NotImplementedError
@@ -411,9 +428,7 @@ def store(
         """
 
 
-def index_triples(
-    train_set, entity_to_idx: dict, relation_to_idx: dict, num_core=0
-) -> pd.core.frame.DataFrame:
+def index_triples(train_set, entity_to_idx: dict, relation_to_idx: dict) -> pd.core.frame.DataFrame:
     """
     :param train_set: pandas dataframe
     :param entity_to_idx: a mapping from str to integer index
@@ -564,15 +579,12 @@ def preprocesses_input_args(arg):
     assert arg.weight_decay >= 0.0
     arg.learning_rate = arg.lr
     arg.deterministic = True
-    assert arg.num_core >= 0
+    if arg.num_core <= 0:
+        arg.num_core = os.cpu_count()//2
 
     # Below part will be investigated
-    arg.check_val_every_n_epoch = 10 ** 6
-    # del arg.check_val_every_n_epochs
-    # arg.checkpoint_callback = False
+    arg.check_val_every_n_epoch = 10 ** 6  # ,i.e., no eval
     arg.logger = False
-    # arg.eval = True if arg.eval == 1 else False
-    # arg.eval_on_train = True if arg.eval_on_train == 1 else False
     try:
         assert arg.eval in [
             None,
@@ -610,13 +622,10 @@ def preprocesses_input_args(arg):
         assert 1.0 >= arg.sample_triples_ratio >= 0.0
 
     assert arg.backend in ["modin", "pandas", "vaex", "polars"]
-
     sanity_checking_with_arguments(arg)
-    # if arg.num_folds_for_cv > 0:
-    #    arg.eval = True
-    if arg.model == "Shallom":
-        arg.scoring_technique = "KvsAll"
-    assert arg.normalization in ["LayerNorm", "BatchNorm1d"]
+    if arg.model == 'Shallom':
+        arg.scoring_technique = 'KvsAll'
+    assert arg.normalization in ['LayerNorm', 'BatchNorm1d']
     return arg
 
 
