@@ -188,12 +188,13 @@ class Evaluator:
                              torch.tensor(p).repeat(self.executor.dataset.num_entities, ),
                              all_entities
                              ), dim=1)
+            
             predictions_tails = model.forward_triples(x)
             x = torch.stack((all_entities,
                              torch.tensor(p).repeat(self.executor.dataset.num_entities, ),
                              torch.tensor(o).repeat(self.executor.dataset.num_entities)
                              ), dim=1)
-
+            
             predictions_heads = model.forward_triples(x)
             del x
 
@@ -231,6 +232,7 @@ class Evaluator:
             _, sort_idxs = torch.sort(predictions_heads, descending=True)
             # sort_idxs = sort_idxs.cpu().numpy()
             sort_idxs = sort_idxs.detach()  # cpu().numpy()
+            
             filt_head_entity_rank = np.where(sort_idxs == s)[0][0]
 
             # 4. Add 1 to ranks as numpy array first item has the index of 0.
@@ -248,9 +250,9 @@ class Evaluator:
                 I += 1 if filt_tail_entity_rank <= hits_level else 0
                 if I > 0:
                     hits.setdefault(hits_level, []).append(I)
-
+        
         mean_reciprocal_rank = sum(reciprocal_ranks) / (float(len(triple_idx) * 2))
-
+        
         if 1 in hits:
             hit_1 = sum(hits[1]) / (float(len(triple_idx) * 2))
         else:

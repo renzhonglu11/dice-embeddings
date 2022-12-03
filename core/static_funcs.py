@@ -20,9 +20,12 @@ from .sanity_checkers import sanity_checking_with_arguments
 
 from pykeen.contrib.lightning import SLCWALitModule
 from pykeen.datasets.base import Dataset, PathDataset
+from pykeen.datasets.literal_base import NumericPathDataset
 from pykeen.triples import TriplesFactory
 from pykeen.contrib.lightning import LitModule
 import types
+import pykeen.nn
+from pykeen.models.multimodal.base import LiteralModel
 
 # @TODO: Could these funcs can be merged?
 def select_model(
@@ -183,38 +186,44 @@ def model_fitting(trainer, model, train_dataloaders) -> None:
     print(f"Model fitting is done!")
 
 
-
-def preprocess_modin_dataframe_of_kg(df, read_only_few: int = None, sample_triples_ratio: float = None):
+def preprocess_modin_dataframe_of_kg(
+    df, read_only_few: int = None, sample_triples_ratio: float = None
+):
     """ Preprocess a modin dataframe to pandas dataframe """
     # df <class 'modin.pandas.dataframe.DataFrame'>
     # return pandas DataFrame
     # (2)a Read only few if it is asked.
     if isinstance(read_only_few, int):
         if read_only_few > 0:
-            print(f'Reading only few input data {read_only_few}...')
+            print(f"Reading only few input data {read_only_few}...")
             df = df.head(read_only_few)
-            print('Done !\n')
+            print("Done !\n")
     # (3) Read only sample
     if sample_triples_ratio:
-        print(f'Subsampling {sample_triples_ratio} of input data...')
+        print(f"Subsampling {sample_triples_ratio} of input data...")
         df = df.sample(frac=sample_triples_ratio)
-        print('Done !\n')
-    if sum(df.head()["subject"].str.startswith('<')) + sum(df.head()["relation"].str.startswith('<')) > 2:
+        print("Done !\n")
+    if (
+        sum(df.head()["subject"].str.startswith("<"))
+        + sum(df.head()["relation"].str.startswith("<"))
+        > 2
+    ):
         # (4) Drop Rows/triples with double or boolean: Example preprocessing
         # Drop of object does not start with **<**.
         # Specifying na to be False instead of NaN.
-        print('Removing triples with literal values...')
-        df = df[df["object"].str.startswith('<', na=False)]
-        print('Done !\n')
+        print("Removing triples with literal values...")
+        df = df[df["object"].str.startswith("<", na=False)]
+        print("Done !\n")
         # (5) Remove **<** and **>**
-        print('Removing brackets **<** and **>**...')
+        print("Removing brackets **<** and **>**...")
         df = df.apply(lambda x: x.str.removeprefix("<").str.removesuffix(">"), axis=1)
-        print('Done !\n')
+        print("Done !\n")
     return df._to_pandas()
 
 
-def old_preprocess_dataframe_of_kg(df, read_only_few: int = None,
-                                   sample_triples_ratio: float = None):
+def old_preprocess_dataframe_of_kg(
+    df, read_only_few: int = None, sample_triples_ratio: float = None
+):
     """ Preprocess lazy loaded dask dataframe
     (1) Read only few triples
     (2) Sample few triples
@@ -258,8 +267,9 @@ def old_preprocess_dataframe_of_kg(df, read_only_few: int = None,
     return df
 
 
-def preprocess_dataframe_of_kg(df, read_only_few: int = None,
-                               sample_triples_ratio: float = None):
+def preprocess_dataframe_of_kg(
+    df, read_only_few: int = None, sample_triples_ratio: float = None
+):
     """ Preprocess lazy loaded dask dataframe
     (1) Read only few triples
     (2) Sample few triples
@@ -275,25 +285,34 @@ def preprocess_dataframe_of_kg(df, read_only_few: int = None,
     # (2)a Read only few if it is asked.
     if isinstance(read_only_few, int):
         if read_only_few > 0:
-            print(f'Reading only few input data {read_only_few}...')
+            print(f"Reading only few input data {read_only_few}...")
             df = df.head(read_only_few)
-            print('Done !\n')
+            print("Done !\n")
     # (3) Read only sample
     if sample_triples_ratio:
-        print(f'Subsampling {sample_triples_ratio} of input data...')
+        print(f"Subsampling {sample_triples_ratio} of input data...")
         df = df.sample(frac=sample_triples_ratio)
-        print('Done !\n')
-    if sum(df.head()["subject"].str.startswith('<')) + sum(df.head()["relation"].str.startswith('<')) > 2:
+        print("Done !\n")
+    if (
+        sum(df.head()["subject"].str.startswith("<"))
+        + sum(df.head()["relation"].str.startswith("<"))
+        > 2
+    ):
         # (4) Drop Rows/triples with double or boolean: Example preprocessing
         # Drop of object does not start with **<**.
         # Specifying na to be False instead of NaN.
-        print('Removing triples with literal values...')
-        df = df[df["object"].str.startswith('<', na=False)]
-        print('Done !\n')
+        print("Removing triples with literal values...")
+        df = df[df["object"].str.startswith("<", na=False)]
+        print("Done !\n")
     return df
 
-def load_data_parallel(data_path, read_only_few: int = None,
-                       sample_triples_ratio: float = None, backend=None):
+
+def load_data_parallel(
+    data_path,
+    read_only_few: int = None,
+    sample_triples_ratio: float = None,
+    backend=None,
+):
     """
     Parse KG via DASK.
     :param read_only_few:
@@ -307,27 +326,35 @@ def load_data_parallel(data_path, read_only_few: int = None,
     if glob.glob(data_path):
         if backend == "modin":
             import modin.pandas as pd
-            if data_path[-3:] in ['txt', 'csv']:
-                df = pd.read_csv(data_path,
-                                 delim_whitespace=True,
-                                 header=None,
-                                 usecols=[0, 1, 2],
-                                 names=['subject', 'relation', 'object'],
-                                 dtype=str)
+
+            if data_path[-3:] in ["txt", "csv"]:
+                df = pd.read_csv(
+                    data_path,
+                    delim_whitespace=True,
+                    header=None,
+                    usecols=[0, 1, 2],
+                    names=["subject", "relation", "object"],
+                    dtype=str,
+                )
             else:
-                df = pd.read_parquet(data_path, engine='pyarrow')
-            return preprocess_modin_dataframe_of_kg(df, read_only_few, sample_triples_ratio)
-        elif backend == 'pandas':
+                df = pd.read_parquet(data_path, engine="pyarrow")
+            return preprocess_modin_dataframe_of_kg(
+                df, read_only_few, sample_triples_ratio
+            )
+        elif backend == "pandas":
             import pandas as pd
-            if data_path[-3:] in ['txt', 'csv']:
-                df = pd.read_csv(data_path,
-                                 delim_whitespace=True,
-                                 header=None,
-                                 usecols=[0, 1, 2],
-                                 names=['subject', 'relation', 'object'],
-                                 dtype=str)
+
+            if data_path[-3:] in ["txt", "csv"]:
+                df = pd.read_csv(
+                    data_path,
+                    delim_whitespace=True,
+                    header=None,
+                    usecols=[0, 1, 2],
+                    names=["subject", "relation", "object"],
+                    dtype=str,
+                )
             else:
-                df = pd.read_parquet(data_path, engine='pyarrow')
+                df = pd.read_parquet(data_path, engine="pyarrow")
             return preprocess_dataframe_of_kg(df, read_only_few, sample_triples_ratio)
         else:
             raise NotImplementedError
@@ -379,16 +406,19 @@ def store(
     store_kge(trained_model, path=full_storage_path + f"/{model_name}.pt")
     if save_as_csv:
         # (2.1) Get embeddings.
+        # import pdb; pdb.set_trace()
         entity_emb, relation_ebm = trained_model.get_embeddings()
-        save_embeddings(
-            entity_emb.numpy(),
-            indexes=dataset.entities_str,
-            path=full_storage_path
-            + "/"
-            + trained_model.name
-            + "_entity_embeddings.csv",
-        )
-        del entity_emb
+        # TODO: model of pykeen may have empty entity_emb. Logic need to be changed here
+        if entity_emb is not None:
+            save_embeddings(
+                entity_emb.numpy(),
+                indexes=dataset.entities_str,
+                path=full_storage_path
+                + "/"
+                + trained_model.name
+                + "_entity_embeddings.csv",
+            )
+            del entity_emb
         if relation_ebm is not None:
             save_embeddings(
                 relation_ebm.numpy(),
@@ -428,7 +458,9 @@ def store(
         """
 
 
-def index_triples(train_set, entity_to_idx: dict, relation_to_idx: dict) -> pd.core.frame.DataFrame:
+def index_triples(
+    train_set, entity_to_idx: dict, relation_to_idx: dict
+) -> pd.core.frame.DataFrame:
     """
     :param train_set: pandas dataframe
     :param entity_to_idx: a mapping from str to integer index
@@ -580,7 +612,7 @@ def preprocesses_input_args(arg):
     arg.learning_rate = arg.lr
     arg.deterministic = True
     if arg.num_core <= 0:
-        arg.num_core = os.cpu_count()//2
+        arg.num_core = os.cpu_count() // 2
 
     # Below part will be investigated
     arg.check_val_every_n_epoch = 10 ** 6  # ,i.e., no eval
@@ -623,9 +655,9 @@ def preprocesses_input_args(arg):
 
     assert arg.backend in ["modin", "pandas", "vaex", "polars"]
     sanity_checking_with_arguments(arg)
-    if arg.model == 'Shallom':
-        arg.scoring_technique = 'KvsAll'
-    assert arg.normalization in ['LayerNorm', 'BatchNorm1d']
+    if arg.model == "Shallom":
+        arg.scoring_technique = "KvsAll"
+    assert arg.normalization in ["LayerNorm", "BatchNorm1d"]
     return arg
 
 
@@ -706,6 +738,36 @@ def get_embeddings(self):
     )
 
 
+def get_dataset_from_pykeen(path, model_name):
+    train_path = path + "/train.txt"
+    test_path = path + "/test.txt"
+    valid_path = path + "/valid.txt"
+    literal_path = path + "/literals.txt"
+    
+    if 'Literal' in model_name.strip():
+    # @TODO: literalModel have two embeddings of entity_representations
+    # should we also implment this kind of model???
+    # https://github.com/pykeen/pykeen/blob/e0471a0c52b92a674e7c9186f324d6aacbebb1b1/src/pykeen/datasets/literal_base.py
+        return NumericPathDataset(
+            training_path=train_path,
+            testing_path=test_path,
+            validation_path=valid_path,
+            literals_path = literal_path
+        )
+
+    if model_name.strip() == "NodePiece" or model_name.strip() == "CompGCN":
+        return PathDataset(
+            training_path=train_path,
+            testing_path=test_path,
+            validation_path=valid_path,
+            create_inverse_triples=True, # NodePiece need in inverse triple
+        )
+
+    return PathDataset(
+        training_path=train_path, testing_path=test_path, validation_path=valid_path
+    )
+
+
 def intialize_model(args: dict) -> Tuple[pl.LightningModule, AnyStr]:
     print("Initializing the selected model...", end=" ")
     # @TODO: Apply construct_krone as callback? or use KronE_QMult as a prefix.
@@ -715,34 +777,31 @@ def intialize_model(args: dict) -> Tuple[pl.LightningModule, AnyStr]:
     if "pykeen" in model_name.lower():
 
         actual_name = model_name.split("_")[1]
-
-        # TODO: pass the dataset to LCWALitModule
-        train_path = args["path_dataset_folder"] + "/train.txt"
-        test_path = args["path_dataset_folder"] + "/test.txt"
-        valid_path = args["path_dataset_folder"] + "/valid.txt"
         # import pdb; pdb.set_trace()
 
-        dataset = PathDataset(
-            training_path=train_path, testing_path=test_path, validation_path=valid_path
-        )
-
-        model = SLCWALitModule(
-            dataset=dataset,
-            model=actual_name,
-            model_kwargs=dict(
-                embedding_dim=args["embedding_dim"],
-                loss="bcewithlogits",
-                entity_representations=[None],
-            ),
-            batch_size=args["batch_size"],
-        )
-
-        model.name = actual_name
+        path = args["path_dataset_folder"]
+        dataset = get_dataset_from_pykeen(path, actual_name)
         
+        
+        if args["pykeen_module"]:
+            model = MySLCWALitModule(
+                dataset=dataset,
+                model=actual_name,
+                model_name=actual_name,
+                model_kwargs=args["pykeen_model_kwargs"],
+                batch_size=args["batch_size"],
+            )
+        else:
+            model = MyLCWALitModule(
+                dataset=dataset,
+                model=actual_name,
+                model_name=actual_name,
+                model_kwargs=args["pykeen_model_kwargs"],
+                batch_size=args["batch_size"],
+            )
+
         # import pdb; pdb.set_trace()
         form_of_labelling = "EntityPrediction"
-        # add get_embeddings method
-        model.get_embeddings = types.MethodType(get_embeddings,model)
         return model, form_of_labelling
 
     if model_name == "KronELinear":
@@ -787,10 +846,10 @@ def intialize_model(args: dict) -> Tuple[pl.LightningModule, AnyStr]:
         form_of_labelling = "EntityPrediction"
     elif model_name == "TransE":
         model = TransE(args=args)
-        form_of_labelling = 'EntityPrediction'
-    elif model_name == 'CLf':
+        form_of_labelling = "EntityPrediction"
+    elif model_name == "CLf":
         model = CLf(args=args)
-        form_of_labelling = 'EntityPrediction'
+        form_of_labelling = "EntityPrediction"
     # elif for PYKEEN https://github.com/dice-group/dice-embeddings/issues/54
     else:
         raise ValueError

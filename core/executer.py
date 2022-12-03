@@ -139,6 +139,7 @@ class Execute:
         trained_model, form_of_labelling = self.trainer.start()
         # (5) Store trained model.
         self.save_trained_model(trained_model, start_time)
+     
         # (6) Eval model.
         self.evaluator.eval(trained_model, form_of_labelling)
         # (7) Return the report of the training process.

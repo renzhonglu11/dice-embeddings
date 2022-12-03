@@ -19,6 +19,11 @@ def argparse_default(description=None):
                         default="QMult",
                         help="Available models: ConEx, ConvQ, ConvO,  QMult, OMult, "
                              "Shallom, ConEx, ComplEx, DistMult, TransE, CLf")
+
+    parser.add_argument('--use_SLCWALitModule', type=bool, default=True,
+                        help='wether to use SLCWALitModule in pykeen')   
+    parser.add_argument('--pykeen_module', type=dict, default=None,
+                        help='modules of pykeen')                       
     parser.add_argument('--optim', type=str, default='Adam',
                         help='[Adan,NAdam, Adam, SGD, Sls, AdamSLS]')
     parser.add_argument('--embedding_dim', type=int, default=100, help='Number of dimensions for an embedding vector. ')
