@@ -144,6 +144,7 @@ class TestDefaultParams:
         args.read_only_few = None
         args.num_folds_for_cv = None
         args.torch_trainer = 'DataParallelTrainer'
+        args.neg_ratio = 1
         Execute(args).start()
 
 

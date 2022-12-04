@@ -25,7 +25,8 @@ from pykeen.triples import TriplesFactory
 from pykeen.contrib.lightning import LitModule
 import types
 import pykeen.nn
-from pykeen.models.multimodal.base import LiteralModel
+from pykeen.models.unimodal.structured_embedding import SE
+
 
 # @TODO: Could these funcs can be merged?
 def select_model(
@@ -410,6 +411,7 @@ def store(
         entity_emb, relation_ebm = trained_model.get_embeddings()
         # TODO: model of pykeen may have empty entity_emb. Logic need to be changed here
         if entity_emb is not None:
+
             save_embeddings(
                 entity_emb.numpy(),
                 indexes=dataset.entities_str,
@@ -420,14 +422,28 @@ def store(
             )
             del entity_emb
         if relation_ebm is not None:
-            save_embeddings(
-                relation_ebm.numpy(),
+            if isinstance(trained_model.model,SE):
+                
+                for i in range(len(relation_ebm)):
+                    
+                    save_embeddings(
+                relation_ebm[i].numpy(),
                 indexes=dataset.relations_str,
                 path=full_storage_path
                 + "/"
                 + trained_model.name
-                + "_relation_embeddings.csv",
+                + "_relation_embeddings_"+str(i)+".csv",
             )
+            else:
+                
+                save_embeddings(
+                    relation_ebm.numpy(),
+                    indexes=dataset.relations_str,
+                    path=full_storage_path
+                    + "/"
+                    + trained_model.name
+                    + "_relation_embeddings.csv",
+                )
             del relation_ebm
         else:
             pass
@@ -901,6 +917,10 @@ def save_embeddings(embeddings: np.ndarray, indexes, path: str) -> None:
     :return:
     """
     try:
+        if len(embeddings.shape)>2:
+            embeddings = embeddings.reshape(55,-1)
+
+            
         df = pd.DataFrame(embeddings, index=indexes)
         del embeddings
         num_mb = df.memory_usage(index=True, deep=True).sum() / (10 ** 6)

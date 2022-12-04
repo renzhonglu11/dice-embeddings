@@ -38,6 +38,11 @@ class Pykeen_Module:
             hasattr(self.model, "relation_representations")
             and len(self.model.relation_representations) != 0
         ):
+            
+            tmp_relation_embedd = []
+            for relation_embedd in self.model.relation_representations:
+                tmp_relation_embedd.append(relation_embedd().data.detach())
+            relation_embedd = tmp_relation_embedd
             # TODO: number of emebedding index will be increased to twice as many as other model
             # problem need to be solved, otherwise it cannot be save to pd.DataFrame properly!!!
             # if isinstance(
@@ -48,7 +53,7 @@ class Pykeen_Module:
             #     ].combined.relation_representations._embeddings
             # else:
             #     relation_embedd = self.model.relation_representations[0]._embeddings
-            relation_embedd = self.model.relation_representations[0]()
+           
 
         if (
             hasattr(self.model, "entity_representations")
@@ -65,9 +70,12 @@ class Pykeen_Module:
             #     entity_embedd = self.model.entity_representations[0]._embeddings
             entity_embedd = self.model.entity_representations[0]()
 
+        if len(relation_embedd)==1 and relation_embedd!=None:
+            relation_embedd = relation_embedd[0]
+        
         return (
             entity_embedd.data.detach() if entity_embedd != None else None,
-            relation_embedd.data.detach() if relation_embedd != None else None,
+            relation_embedd,
         )
 
     def training_epoch_end(self, training_step_outputs) -> None:

@@ -2,7 +2,7 @@ from main import argparse_default
 from core.executer import Execute
 import sys
 import pytest
-
+from pykeen.datasets import Nations
 
 def template(model_name):
     args = argparse_default([])
@@ -60,7 +60,7 @@ def template(model_name):
         "Pykeen_DistMA",
         "Pykeen_CrossE",
         "Pykeen_CooccurrenceFilteredModel",
-        "Pykeen_ConvKB",
+        "Pykeen_ConvKB", # this one is really slow 
         "Pykeen_ConvE",
         "Pykeen_ComplExLiteral",
         "Pykeen_ComplEx",
@@ -79,7 +79,7 @@ class TestPykeen:
     @pytest.mark.filterwarnings("ignore::UserWarning")
     def test_specific_model(self):
         args = argparse_default([])
-        args.model = "Pykeen_NodePiece"
+        args.model = "Pykeen_SE"
         args.scoring_technique = "NegSample"
         args.path_dataset_folder = "KGs/Nations"
         args.num_epochs = 10
@@ -99,8 +99,8 @@ class TestPykeen:
             embedding_dim=args.embedding_dim,
             loss="bcewithlogits",
             # entity_representations=[None],
-            tokenizers=["AnchorTokenizer", "RelationTokenizer"],
-            num_tokens=[3, 12],
+            # tokenizers=["AnchorTokenizer", "RelationTokenizer"],
+            # num_tokens=[3, 12],
         )
         Execute(args).start()
 
