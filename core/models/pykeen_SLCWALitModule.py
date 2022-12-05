@@ -1,7 +1,4 @@
 from pykeen.contrib.lightning import SLCWALitModule
-from pykeen import predict
-import torch
-import numpy as np
 from .pykeen_Module import *
 
 

@@ -3,7 +3,6 @@ from pykeen import predict
 import torch
 import numpy as np
 from typing import Tuple
-from pykeen.nn.representation import SingleCompGCNRepresentation
 
 
 class Pykeen_Module:
@@ -12,69 +11,43 @@ class Pykeen_Module:
         self.loss_history = []
 
     def get_embeddings(self) -> Tuple[np.ndarray, np.ndarray]:
-        entity_embedd = None
-        relation_embedd = None
+        relation_embedd = []
+        entity_embedd = []
 
-        # TODO: NodePiece uses selected anchor nodes and relation to embedd the target node. As a result not all nodes need to be embedded
-        # if self.name.strip() == "NodePiece":
-        #     # self.model.entity_representations[0].base[0].save_assignment(output_path=Path(path))
-        #     relation_embedd = self.model.relation_representations[0].base._embeddings
-        #     entity_embedd = (
-        #         self.model.entity_representations[0].base[0].vocabulary._embeddings
-        #     )
-        #     return (
-        #         entity_embedd.weight.data.detach(),
-        #         relation_embedd.weight.data.detach(),
-        #     )
-        # if hasattr(self.model, "base"):
-        #     if len(self.model.base.relation_representations) != 0:
-        #         relation_embedd = self.model.base.relation_representations[
-        #             0
-        #         ]._embeddings
-        #     if len(self.model.base.entity_representations) != 0:
-        #         entity_embedd = self.model.base.entity_representations[0]._embeddings
+
+        if hasattr(self.model,"base") and hasattr(self.model.base,"relation_representations") and len(self.model.base.relation_representations)!=0:
+            for embedd_item in self.model.base.relation_representations:
+                relation_embedd.append(embedd_item().data.detach())
 
         if (
             hasattr(self.model, "relation_representations")
             and len(self.model.relation_representations) != 0
         ):
-            
-            tmp_relation_embedd = []
-            for relation_embedd in self.model.relation_representations:
-                tmp_relation_embedd.append(relation_embedd().data.detach())
-            relation_embedd = tmp_relation_embedd
-            # TODO: number of emebedding index will be increased to twice as many as other model
-            # problem need to be solved, otherwise it cannot be save to pd.DataFrame properly!!!
-            # if isinstance(
-            #     self.model.relation_representations[0], SingleCompGCNRepresentation
-            # ):
-            #     relation_embedd = self.model.relation_representations[
-            #         0
-            #     ].combined.relation_representations._embeddings
-            # else:
-            #     relation_embedd = self.model.relation_representations[0]._embeddings
-           
+            for embedd_item in self.model.relation_representations:
+                relation_embedd.append(embedd_item().data.detach())
+
+        if len(relation_embedd) == 1:
+            relation_embedd = relation_embedd[0]
+
+        if hasattr(self.model,"base") and hasattr(self.model.base,"entity_representations") and len(self.model.base.entity_representations)!=0:
+            for embedd_item in self.model.base.entity_representations:
+                entity_embedd.append(embedd_item().data.detach())
+
 
         if (
             hasattr(self.model, "entity_representations")
             and len(self.model.entity_representations) != 0
         ):
+            for embedd_item in self.model.entity_representations:
+                entity_embedd.append(embedd_item().data.detach())
 
-            # if isinstance(
-            #     self.model.entity_representations[0], SingleCompGCNRepresentation
-            # ):
-            #     entity_embedd = self.model.entity_representations[
-            #         0
-            #     ].combined.entity_representations._embeddings
-            # else:
-            #     entity_embedd = self.model.entity_representations[0]._embeddings
-            entity_embedd = self.model.entity_representations[0]()
 
-        if len(relation_embedd)==1 and relation_embedd!=None:
-            relation_embedd = relation_embedd[0]
-        
+     
+        if len(entity_embedd) == 1:
+            entity_embedd = entity_embedd[0]
+
         return (
-            entity_embedd.data.detach() if entity_embedd != None else None,
+            entity_embedd,
             relation_embedd,
         )
 

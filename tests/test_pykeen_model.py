@@ -3,6 +3,7 @@ from core.executer import Execute
 import sys
 import pytest
 from pykeen.datasets import Nations
+from pykeen.datasets.inductive.ilp_teru import InductiveFB15k237
 
 def template(model_name):
     args = argparse_default([])

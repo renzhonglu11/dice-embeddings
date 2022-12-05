@@ -18,14 +18,11 @@ import glob
 import pandas
 from .sanity_checkers import sanity_checking_with_arguments
 
-from pykeen.contrib.lightning import SLCWALitModule
-from pykeen.datasets.base import Dataset, PathDataset
+from pykeen.datasets.base import PathDataset
 from pykeen.datasets.literal_base import NumericPathDataset
-from pykeen.triples import TriplesFactory
 from pykeen.contrib.lightning import LitModule
 import types
 import pykeen.nn
-from pykeen.models.unimodal.structured_embedding import SE
 
 
 # @TODO: Could these funcs can be merged?
@@ -410,20 +407,37 @@ def store(
         # import pdb; pdb.set_trace()
         entity_emb, relation_ebm = trained_model.get_embeddings()
         # TODO: model of pykeen may have empty entity_emb. Logic need to be changed here
-        if entity_emb is not None:
+        if isinstance(entity_emb,list) and len(entity_emb)==0:
+            return
 
-            save_embeddings(
-                entity_emb.numpy(),
+        if entity_emb is not None:
+            if isinstance(entity_emb,list) and len(entity_emb) > 1:
+                for i in range(len(entity_emb)):
+                    
+                    save_embeddings(
+                entity_emb[i].numpy(),
                 indexes=dataset.entities_str,
                 path=full_storage_path
                 + "/"
                 + trained_model.name
-                + "_entity_embeddings.csv",
+                + "_entity_embeddings_"+str(i)+".csv",
             )
+            else:
+                save_embeddings(
+                    entity_emb.numpy(),
+                    indexes=dataset.entities_str,
+                    path=full_storage_path
+                    + "/"
+                    + trained_model.name
+                    + "_entity_embeddings.csv",
+                )
             del entity_emb
+
+        if isinstance(relation_ebm,list) and len(relation_ebm)==0:
+            return
+
         if relation_ebm is not None:
-            if isinstance(trained_model.model,SE):
-                
+            if isinstance(relation_ebm,list) and len(relation_ebm) > 1:
                 for i in range(len(relation_ebm)):
                     
                     save_embeddings(
@@ -434,6 +448,7 @@ def store(
                 + trained_model.name
                 + "_relation_embeddings_"+str(i)+".csv",
             )
+
             else:
                 
                 save_embeddings(
@@ -917,11 +932,16 @@ def save_embeddings(embeddings: np.ndarray, indexes, path: str) -> None:
     :return:
     """
     try:
+        _indexes = indexes
         if len(embeddings.shape)>2:
-            embeddings = embeddings.reshape(55,-1)
+            embeddings = embeddings.reshape(embeddings.shape[0],-1)
 
-            
-        df = pd.DataFrame(embeddings, index=indexes)
+        if embeddings.shape[0] > len(indexes):
+            num_of_times_extends = embeddings.shape[0]//len(indexes)
+            for _ in range(num_of_times_extends-1):
+                _indexes.extend(indexes)
+
+        df = pd.DataFrame(embeddings, index=_indexes)
         del embeddings
         num_mb = df.memory_usage(index=True, deep=True).sum() / (10 ** 6)
         if num_mb > 10 ** 6:
