@@ -18,12 +18,12 @@ import glob
 import pandas
 from .sanity_checkers import sanity_checking_with_arguments
 
+import types
 from pykeen.datasets.base import PathDataset
 from pykeen.datasets.literal_base import NumericPathDataset
 from pykeen.contrib.lightning import LitModule
-import types
-import pykeen.nn
-
+from pykeen.models.nbase import ERModel
+from pykeen.models.resolve import make_model
 
 # @TODO: Could these funcs can be merged?
 def select_model(
@@ -407,21 +407,23 @@ def store(
         # import pdb; pdb.set_trace()
         entity_emb, relation_ebm = trained_model.get_embeddings()
         # TODO: model of pykeen may have empty entity_emb. Logic need to be changed here
-        if isinstance(entity_emb,list) and len(entity_emb)==0:
+        if isinstance(entity_emb, list) and len(entity_emb) == 0:
             return
 
         if entity_emb is not None:
-            if isinstance(entity_emb,list) and len(entity_emb) > 1:
+            if isinstance(entity_emb, list) and len(entity_emb) > 1:
                 for i in range(len(entity_emb)):
-                    
+
                     save_embeddings(
-                entity_emb[i].numpy(),
-                indexes=dataset.entities_str,
-                path=full_storage_path
-                + "/"
-                + trained_model.name
-                + "_entity_embeddings_"+str(i)+".csv",
-            )
+                        entity_emb[i].numpy(),
+                        indexes=dataset.entities_str,
+                        path=full_storage_path
+                        + "/"
+                        + trained_model.name
+                        + "_entity_embeddings_"
+                        + str(i)
+                        + ".csv",
+                    )
             else:
                 save_embeddings(
                     entity_emb.numpy(),
@@ -433,24 +435,26 @@ def store(
                 )
             del entity_emb
 
-        if isinstance(relation_ebm,list) and len(relation_ebm)==0:
+        if isinstance(relation_ebm, list) and len(relation_ebm) == 0:
             return
 
         if relation_ebm is not None:
-            if isinstance(relation_ebm,list) and len(relation_ebm) > 1:
+            if isinstance(relation_ebm, list) and len(relation_ebm) > 1:
                 for i in range(len(relation_ebm)):
-                    
+
                     save_embeddings(
-                relation_ebm[i].numpy(),
-                indexes=dataset.relations_str,
-                path=full_storage_path
-                + "/"
-                + trained_model.name
-                + "_relation_embeddings_"+str(i)+".csv",
-            )
+                        relation_ebm[i].numpy(),
+                        indexes=dataset.relations_str,
+                        path=full_storage_path
+                        + "/"
+                        + trained_model.name
+                        + "_relation_embeddings_"
+                        + str(i)
+                        + ".csv",
+                    )
 
             else:
-                
+
                 save_embeddings(
                     relation_ebm.numpy(),
                     indexes=dataset.relations_str,
@@ -774,16 +778,15 @@ def get_dataset_from_pykeen(path, model_name):
     test_path = path + "/test.txt"
     valid_path = path + "/valid.txt"
     literal_path = path + "/literals.txt"
-    
-    if 'Literal' in model_name.strip():
-    # @TODO: literalModel have two embeddings of entity_representations
-    # should we also implment this kind of model???
-    # https://github.com/pykeen/pykeen/blob/e0471a0c52b92a674e7c9186f324d6aacbebb1b1/src/pykeen/datasets/literal_base.py
+    if "Literal" in model_name.strip():
+        # @TODO: literalModel have two embeddings of entity_representations
+        # should we also implment this kind of model???
+        # https://github.com/pykeen/pykeen/blob/e0471a0c52b92a674e7c9186f324d6aacbebb1b1/src/pykeen/datasets/literal_base.py
         return NumericPathDataset(
             training_path=train_path,
             testing_path=test_path,
             validation_path=valid_path,
-            literals_path = literal_path
+            literals_path=literal_path,
         )
 
     if model_name.strip() == "NodePiece" or model_name.strip() == "CompGCN":
@@ -791,12 +794,69 @@ def get_dataset_from_pykeen(path, model_name):
             training_path=train_path,
             testing_path=test_path,
             validation_path=valid_path,
-            create_inverse_triples=True, # NodePiece need in inverse triple
+            create_inverse_triples=True,  # NodePiece need in inverse triple
         )
 
     return PathDataset(
         training_path=train_path, testing_path=test_path, validation_path=valid_path
     )
+
+
+def get_pykeen_model(model_name, args):
+    interaction_model = None
+    passed_model = None
+    model = None
+    path = args["path_dataset_folder"]
+    actual_name = model_name.split("_")[1]
+    dataset = get_dataset_from_pykeen(path, actual_name)
+
+    # initialize model by name or by interaction function
+    if "interaction" in model_name.lower():
+        relation_representations = None
+        entity_representations = None
+
+        if 'LineaRE'.lower() in actual_name.lower() or 'TripleRE'.lower() in actual_name.lower():
+            relation_representations = [None, None, None]
+
+        if 'MultiLinearTucker'.lower() in actual_name.lower():
+            entity_representations = [None,None]
+        
+        interaction_model = ERModel(
+                triples_factory=dataset.training,
+                entity_representations=entity_representations,
+                relation_representations=relation_representations,
+                interaction=actual_name,
+                entity_representations_kwargs=dict(
+                    embedding_dim=args["embedding_dim"],
+                    dropout=args["input_dropout_rate"],
+                ),
+                relation_representations_kwargs=dict(
+                    embedding_dim=args["embedding_dim"],
+                    dropout=args["input_dropout_rate"],
+                ),
+                interaction_kwargs= args["interaction_kwargs"]
+            )
+        passed_model = interaction_model       
+    else:
+        passed_model = actual_name
+    # initialize module for pytorch-lightning trainer
+    if args["use_SLCWALitModule"]:
+        model = MySLCWALitModule(
+            dataset=dataset,
+            model=passed_model,
+            model_name=actual_name,
+            model_kwargs=args["pykeen_model_kwargs"],
+            batch_size=args["batch_size"],
+        )
+    else:
+        model = MyLCWALitModule(
+            dataset=dataset,
+            model=passed_model,
+            model_name=actual_name,
+            model_kwargs=args["pykeen_model_kwargs"],
+            batch_size=args["batch_size"],
+        )
+    return model
 
 
 def intialize_model(args: dict) -> Tuple[pl.LightningModule, AnyStr]:
@@ -806,36 +866,10 @@ def intialize_model(args: dict) -> Tuple[pl.LightningModule, AnyStr]:
     model_name = args["model"]
 
     if "pykeen" in model_name.lower():
-
-        actual_name = model_name.split("_")[1]
-        # import pdb; pdb.set_trace()
-
-        path = args["path_dataset_folder"]
-        dataset = get_dataset_from_pykeen(path, actual_name)
-        
-        
-        if args["pykeen_module"]:
-            model = MySLCWALitModule(
-                dataset=dataset,
-                model=actual_name,
-                model_name=actual_name,
-                model_kwargs=args["pykeen_model_kwargs"],
-                batch_size=args["batch_size"],
-            )
-        else:
-            model = MyLCWALitModule(
-                dataset=dataset,
-                model=actual_name,
-                model_name=actual_name,
-                model_kwargs=args["pykeen_model_kwargs"],
-                batch_size=args["batch_size"],
-            )
-
-        # import pdb; pdb.set_trace()
+        model = get_pykeen_model(model_name, args)
         form_of_labelling = "EntityPrediction"
-        return model, form_of_labelling
-
-    if model_name == "KronELinear":
+        # import pdb; pdb.set_trace()
+    elif model_name == "KronELinear":
         model = KronELinear(args=args)
         form_of_labelling = "EntityPrediction"
     elif model_name == "KPDistMult":
@@ -933,12 +967,12 @@ def save_embeddings(embeddings: np.ndarray, indexes, path: str) -> None:
     """
     try:
         _indexes = indexes
-        if len(embeddings.shape)>2:
-            embeddings = embeddings.reshape(embeddings.shape[0],-1)
+        if len(embeddings.shape) > 2:
+            embeddings = embeddings.reshape(embeddings.shape[0], -1)
 
         if embeddings.shape[0] > len(indexes):
-            num_of_times_extends = embeddings.shape[0]//len(indexes)
-            for _ in range(num_of_times_extends-1):
+            num_of_times_extends = embeddings.shape[0] // len(indexes)
+            for _ in range(num_of_times_extends - 1):
                 _indexes.extend(indexes)
 
         df = pd.DataFrame(embeddings, index=_indexes)

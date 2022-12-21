@@ -5,15 +5,16 @@ import pytest
 from pykeen.datasets import Nations
 from pykeen.datasets.inductive.ilp_teru import InductiveFB15k237
 
+
 def template(model_name):
     args = argparse_default([])
     args.model = model_name
-    args.scoring_technique = "NegSample"
+    args.scoring_technique = "NegSample"  # default value of args.eval is 'val_test'
     args.path_dataset_folder = "KGs/Nations"
     args.num_epochs = 10
     args.batch_size = 1024
     args.lr = 0.01
-    args.embedding_dim = 50
+    args.embedding_dim = 64
     args.input_dropout_rate = 0.0
     args.hidden_dropout_rate = 0.0
     args.feature_map_dropout_rate = 0.0
@@ -25,8 +26,9 @@ def template(model_name):
     args.pykeen_model_kwargs = dict(
         embedding_dim=args.embedding_dim, loss="bcewithlogits",
     )
+    args.interaction_kwargs = None
     args.use_SLCWALitModule = False
-    Execute(args).start()
+    return args
 
 
 @pytest.mark.filterwarnings("ignore::UserWarning")
@@ -61,7 +63,7 @@ def template(model_name):
         "Pykeen_DistMA",
         "Pykeen_CrossE",
         "Pykeen_CooccurrenceFilteredModel",
-        "Pykeen_ConvKB", # this one is really slow 
+        "Pykeen_ConvKB",  # this one is really slow
         "Pykeen_ConvE",
         "Pykeen_ComplExLiteral",
         "Pykeen_ComplEx",
@@ -73,20 +75,43 @@ def template(model_name):
     ],
 )
 def test_fixedModel(model_name):
-    template(model_name)
+    args = template(model_name)
+    Execute(args).start()
+
+
+@pytest.mark.filterwarnings("ignore::UserWarning")
+@pytest.mark.parametrize(
+    "model_name",
+    [
+        "Pykeen_TripleREInteraction",
+        "Pykeen_TransformerInteraction",
+        "Pykeen_MultiLinearTuckerInteraction",
+        "Pykeen_LineaREInteraction",
+    ],
+)
+def test_pykeenInteraction(model_name):
+    args = template(model_name)
+    if model_name == "Pykeen_LineaREInteraction":
+        args.interaction_kwargs = {"p": 1}  # the L_p norm, usually 1 or 2
+    if model_name == "Pykeen_TransformerInteraction": # relativ slow
+        args.embedding_dim = 512 # embedding_dim can only be 512
+        args.pykeen_model_kwargs = dict(
+            embedding_dim=args.embedding_dim, loss="bcewithlogits",
+        )
+    Execute(args).start()
 
 
 class TestPykeen:
     @pytest.mark.filterwarnings("ignore::UserWarning")
     def test_specific_model(self):
         args = argparse_default([])
-        args.model = "Pykeen_SE"
+        args.model = "Pykeen_LineaREInteraction"
         args.scoring_technique = "NegSample"
         args.path_dataset_folder = "KGs/Nations"
         args.num_epochs = 10
         args.batch_size = 1024
         args.lr = 0.01
-        args.embedding_dim = 50
+        args.embedding_dim = 64
         args.input_dropout_rate = 0.0
         args.hidden_dropout_rate = 0.0
         args.feature_map_dropout_rate = 0.0
@@ -95,7 +120,7 @@ class TestPykeen:
         args.sample_triples_ratio = None
         args.torch_trainer = "None"
         args.neg_ratio = 1
-        # args.use_SLCWALitModule = False
+        args.use_SLCWALitModule = False
         args.pykeen_model_kwargs = dict(
             embedding_dim=args.embedding_dim,
             loss="bcewithlogits",
@@ -103,33 +128,6 @@ class TestPykeen:
             # tokenizers=["AnchorTokenizer", "RelationTokenizer"],
             # num_tokens=[3, 12],
         )
+
         Execute(args).start()
 
-
-# class TestPykeenLiteralModel:
-#     @pytest.mark.filterwarnings('ignore::UserWarning')
-#     def test_specific_model(self):
-#         # "Pykeen_DistMultLiteralGated", "Pykeen_DistMultLiteral"
-#         # literalModel in Pykeen has combinedRepresentation. That means two entity_representations will be returned
-#         args = argparse_default([])
-#         args.model = "Pykeen_DistMultLiteral"
-#         args.num_epochs = 1
-#         args.scoring_technique = "NegSample"
-#         args.path_dataset_folder = "KGs/Nations"
-#         args.num_epochs = 10
-#         args.batch_size = 1024
-#         args.lr = 0.01
-#         args.embedding_dim = 50
-#         args.input_dropout_rate = 0.0
-#         args.hidden_dropout_rate = 0.0
-#         args.feature_map_dropout_rate = 0.0
-#         args.sample_triples_ratio = None
-#         args.read_only_few = None
-#         args.sample_triples_ratio = None
-#         args.torch_trainer = "None"
-#         args.neg_ratio = 1
-#         args.pykeen_model_kwargs = dict(
-#             embedding_dim=args.embedding_dim,
-#             loss="bcewithlogits",
-#         )
-#         Execute(args).start()

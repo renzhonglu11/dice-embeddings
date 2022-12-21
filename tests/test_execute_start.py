@@ -62,8 +62,8 @@ class TestDefaultParams:
         args.sample_triples_ratio = None
         args.read_only_few = None
         args.sample_triples_ratio = None
-        args.torch_trainer = 'DataParallelTrainer'
-        # args.torch_trainer = 'None'
+        # args.torch_trainer = 'DataParallelTrainer'
+        args.torch_trainer = 'None'
         # args.use_pykeen=True
         Execute(args).start()
 

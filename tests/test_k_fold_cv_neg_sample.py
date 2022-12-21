@@ -51,7 +51,7 @@ class TestCV_NegSample:
     def test_qmult_NegSample(self):
         args = argparse_default([])
         args.model = 'QMult'
-        args.num_epochs = 1
+        args.num_epochs = 10
         args.scoring_technique = 'NegSample'
         args.neg_ratio = 1
         args.path_dataset_folder = 'KGs/Family'

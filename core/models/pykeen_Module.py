@@ -8,7 +8,7 @@ from typing import Tuple
 class Pykeen_Module:
     def __init__(self, model_name) -> None:
         self.name = model_name
-        self.loss_history = []
+        
 
     def get_embeddings(self) -> Tuple[np.ndarray, np.ndarray]:
         relation_embedd = []
@@ -51,10 +51,6 @@ class Pykeen_Module:
             relation_embedd,
         )
 
-    def training_epoch_end(self, training_step_outputs) -> None:
-        batch_losses = [i["loss"].item() for i in training_step_outputs]
-        avg = sum(batch_losses) / len(batch_losses)
-        self.loss_history.append(avg)
 
     def forward_triples(self, x: torch.Tensor) -> torch.FloatTensor:
         # the tensors here is inference tensors and can't be modified in-place outside InferenceMode.
