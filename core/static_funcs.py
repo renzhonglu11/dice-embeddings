@@ -23,7 +23,7 @@ from pykeen.datasets.base import PathDataset
 from pykeen.datasets.literal_base import NumericPathDataset
 from pykeen.contrib.lightning import LitModule
 from pykeen.models.nbase import ERModel
-from pykeen.models.resolve import make_model
+from pykeen.nn.modules import interaction_resolver
 
 # @TODO: Could these funcs can be merged?
 def select_model(
@@ -814,13 +814,20 @@ def get_pykeen_model(model_name, args):
     if "interaction" in model_name.lower():
         relation_representations = None
         entity_representations = None
+        intection_kwargs = args["interaction_kwargs"]
 
-        if 'LineaRE'.lower() in actual_name.lower() or 'TripleRE'.lower() in actual_name.lower():
-            relation_representations = [None, None, None]
+        # using class_resolver to find out the corresponding shape of interaction
+        # https://pykeen.readthedocs.io/en/latest/tutorial/using_resolvers.html#using-resolvers
+        interaction_instance = interaction_resolver.make(actual_name,intection_kwargs)
+        if hasattr(interaction_instance,'relation_shape'):
+            list_len = len(interaction_instance.relation_shape)
+            relation_representations = [None for x in range(list_len)]
 
-        if 'MultiLinearTucker'.lower() in actual_name.lower():
-            entity_representations = [None,None]
+        if hasattr(interaction_instance,'entity_shape'):
+            list_len = len(interaction_instance.entity_shape)
+            entity_representations = [None for x in range(list_len)]
         
+
         interaction_model = ERModel(
                 triples_factory=dataset.training,
                 entity_representations=entity_representations,
