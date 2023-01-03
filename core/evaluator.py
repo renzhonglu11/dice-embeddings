@@ -1,13 +1,60 @@
 import torch
 import numpy as np
 import json
+import sys
+from .static_funcs import timeit
 
 
 class Evaluator:
+    """
+        Evaluator class to evaluate KGE models in various downstream tasks
+
+        Arguments
+       ----------
+       executor: Executor class instance
+   """
+
     def __init__(self, executor):
         self.executor = executor
         self.report = dict()
 
+    def __vocab_preparation(self) -> None:
+        """
+        A function to wait future objects for the attributes of executor
+
+        Arguments
+        ----------
+
+        Return
+        ----------
+        None
+        """
+
+        print("** VOCAB Prep **")
+        if isinstance(self.executor.dataset.er_vocab, dict):
+            pass
+        else:
+            self.executor.dataset.er_vocab = self.executor.dataset.er_vocab.result()
+
+        if isinstance(self.executor.dataset.re_vocab, dict):
+            pass
+        else:
+            self.executor.dataset.re_vocab = self.executor.dataset.re_vocab.result()
+
+        if isinstance(self.executor.dataset.ee_vocab, dict):
+            pass
+        else:
+            self.executor.dataset.ee_vocab = self.executor.dataset.ee_vocab.result()
+
+        if isinstance(self.executor.dataset.domain_constraints_per_rel, dict):
+            pass
+        else:
+            try:
+                self.executor.dataset.domain_constraints_per_rel, self.executor.dataset.range_constraints_per_rel = self.executor.dataset.constraints.result()
+            except RuntimeError:
+                print('Domain constraint exception occurred')
+
+    @timeit
     def eval(self, trained_model, form_of_labelling) -> None:
         """
         Evaluate model with Standard
@@ -15,15 +62,18 @@ class Evaluator:
         :param trained_model:
         :return:
         """
-        print('Evaluation Starts.')
-        if self.executor.args.eval is None:
+        # (1) Exit, if the flag is not set
+        if self.executor.args.eval_model is None:
             return
+        print("** EVAL **")
+        self.__vocab_preparation()
+        print('Evaluation Starts.')
         if self.executor.args.num_folds_for_cv > 1:
             # the evaluation must have done in the training part
             return
-        if isinstance(self.executor.args.eval, bool):
+        if isinstance(self.executor.args.eval_model, bool):
             print('Wrong input:RESET')
-            self.executor.args.eval = 'train_val_test'
+            self.executor.args.eval_model = 'train_val_test'
 
         if self.executor.args.scoring_technique == 'NegSample':
             self.eval_rank_of_head_and_tail_entity(trained_model)
@@ -35,41 +85,40 @@ class Evaluator:
             raise ValueError(f'Invalid argument: {self.executor.args.scoring_technique}')
         with open(self.executor.args.full_storage_path + '/eval_report.json', 'w') as file_descriptor:
             json.dump(self.report, file_descriptor, indent=4)
-        print('Evaluation Ends.')
 
     def eval_rank_of_head_and_tail_entity(self, trained_model):
         # 4. Test model on the training dataset if it is needed.
-        if 'train' in self.executor.args.eval:
+        if 'train' in self.executor.args.eval_model:
             res = self.evaluate_lp(trained_model, self.executor.dataset.train_set,
                                    f'Evaluate {trained_model.name} on Train set')
             self.report['Train'] = res
         # 5. Test model on the validation and test dataset if it is needed.
-        if 'val' in self.executor.args.eval:
+        if 'val' in self.executor.args.eval_model:
             if self.executor.dataset.valid_set is not None:
                 self.report['Val'] = self.evaluate_lp(trained_model, self.executor.dataset.valid_set,
                                                       f'Evaluate {trained_model.name} of Validation set')
 
-        if self.executor.dataset.test_set is not None and 'test' in self.executor.args.eval:
+        if self.executor.dataset.test_set is not None and 'test' in self.executor.args.eval_model:
             self.report['Test'] = self.evaluate_lp(trained_model, self.executor.dataset.test_set,
                                                    f'Evaluate {trained_model.name} of Test set')
 
     def eval_with_vs_all(self, trained_model, form_of_labelling) -> None:
         """ Evaluate model after reciprocal triples are added """
         # 4. Test model on the training dataset if it is needed.
-        if 'train' in self.executor.args.eval:
+        if 'train' in self.executor.args.eval_model:
             res = self.evaluate_lp_k_vs_all(trained_model, self.executor.dataset.train_set,
                                             info=f'Evaluate {trained_model.name} on Train set',
                                             form_of_labelling=form_of_labelling)
             self.report['Train'] = res
 
         # 5. Test model on the validation and test dataset if it is needed.
-        if 'val' in self.executor.args.eval:
+        if 'val' in self.executor.args.eval_model:
             if self.executor.dataset.valid_set is not None:
                 res = self.evaluate_lp_k_vs_all(trained_model, self.executor.dataset.valid_set,
                                                 f'Evaluate {trained_model.name} on Validation set',
                                                 form_of_labelling=form_of_labelling)
                 self.report['Val'] = res
-        if self.executor.dataset.test_set is not None and 'test' in self.executor.args.eval:
+        if self.executor.dataset.test_set is not None and 'test' in self.executor.args.eval_model:
             res = self.evaluate_lp_k_vs_all(trained_model, self.executor.dataset.test_set,
                                             f'Evaluate {trained_model.name} on Test set',
                                             form_of_labelling=form_of_labelling)
@@ -86,17 +135,16 @@ class Evaluator:
         """
         # (1) set model to eval model
         model.eval()
-        hits = []
+        num_triples = len(triple_idx)
         ranks = []
+        # Hit range
+        hits_range = [i for i in range(1, 11)]
+        hits = {i: [] for i in hits_range}
         if info:
             print(info + ':', end=' ')
-        for i in range(10):
-            hits.append([])
-
-        # (2) Evaluation mode
         if form_of_labelling == 'RelationPrediction':
             # Iterate over integer indexed triples in mini batch fashion
-            for i in range(0, len(triple_idx), self.executor.args.batch_size):
+            for i in range(0, num_triples, self.executor.args.batch_size):
                 data_batch = triple_idx[i:i + self.executor.args.batch_size]
                 e1_idx_e2_idx, r_idx = torch.LongTensor(data_batch[:, [0, 2]]), torch.LongTensor(data_batch[:, 1])
                 # Generate predictions
@@ -111,48 +159,57 @@ class Evaluator:
                 sort_values, sort_idxs = torch.sort(predictions, dim=1, descending=True)
                 # This can be also done in parallel
                 for j in range(data_batch.shape[0]):
-                    rank = torch.where(sort_idxs[j] == r_idx[j])[0].item()
-                    ranks.append(rank + 1)
-
-                    for hits_level in range(10):
+                    rank = torch.where(sort_idxs[j] == r_idx[j])[0].item() + 1
+                    ranks.append(rank)
+                    for hits_level in hits_range:
                         if rank <= hits_level:
                             hits[hits_level].append(1.0)
-
         else:
             # TODO: Why do not we use Pytorch Dataset ? for multiprocessing
             # Iterate over integer indexed triples in mini batch fashion
-            for i in range(0, len(triple_idx), self.executor.args.batch_size):
+            for i in range(0, num_triples, self.executor.args.batch_size):
+                # (1) Get a batch of data.
                 data_batch = triple_idx[i:i + self.executor.args.batch_size]
+                # (2) Extract entities and relations.
                 e1_idx_r_idx, e2_idx = torch.LongTensor(data_batch[:, [0, 1]]), torch.tensor(data_batch[:, 2])
+                # (3) Predict missing entities, i.e., assign probs to all entities.
                 with torch.no_grad():
                     predictions = model(e1_idx_r_idx)
-                # Filter entities except the target entity
+                # (4) Filter entities except the target entity
                 for j in range(data_batch.shape[0]):
-                    filt = self.executor.dataset.er_vocab[(data_batch[j][0], data_batch[j][1])]
-                    target_value = predictions[j, e2_idx[j]].item()
+                    # (4.1) Get the ids of the head entity, the relation and the target tail entity in the j.th triple.
+                    id_e, id_r, id_e_target = data_batch[j]
+                    # (4.2) Get all ids of all entities occurring with the head entity and relation extracted in 4.1.
+                    filt = self.executor.dataset.er_vocab[(id_e, id_r)]
+                    # (4.3) Store the assigned score of the target tail entity extracted in 4.1.
+                    target_value = predictions[j, id_e_target].item()
+                    # (4.4.1) Filter all assigned scores for entities.
                     predictions[j, filt] = -np.Inf
-                    # 3.3.1 Filter entities outside of the range
-                    # TODO: Fix it CV resets from str to boolean
-                    if 'constraint' in self.executor.args.eval:
+                    # (4.4.2) Filter entities based on the range of a relation as well.
+                    if 'constraint' in self.executor.args.eval_model:
                         predictions[j, self.executor.dataset.range_constraints_per_rel[data_batch[j, 1]]] = -np.Inf
-                    predictions[j, e2_idx[j]] = target_value
-                # Sort predictions.
+                    # (4.5) Insert 4.3. after filtering.
+                    predictions[j, id_e_target] = target_value
+                # (5) Sort predictions.
                 sort_values, sort_idxs = torch.sort(predictions, dim=1, descending=True)
-                # This can be also done in paralel
+                # (6) Compute the filtered ranks.
                 for j in range(data_batch.shape[0]):
-                    rank = torch.where(sort_idxs[j] == e2_idx[j])[0].item()
-                    ranks.append(rank + 1)
-
-                    for hits_level in range(10):
+                    # index between 0 and \inf
+                    rank = torch.where(sort_idxs[j] == e2_idx[j])[0].item() + 1
+                    ranks.append(rank)
+                    for hits_level in hits_range:
                         if rank <= hits_level:
                             hits[hits_level].append(1.0)
-        hit_1 = sum(hits[0]) / (float(len(triple_idx)))
-        hit_3 = sum(hits[2]) / (float(len(triple_idx)))
-        hit_10 = sum(hits[9]) / (float(len(triple_idx)))
+        # (7) Sanity checking: a rank for a triple
+        assert len(triple_idx) == len(ranks) == num_triples
+        hit_1 = sum(hits[1]) / num_triples
+        hit_3 = sum(hits[3]) / num_triples
+        hit_10 = sum(hits[10]) / num_triples
         mean_reciprocal_rank = np.mean(1. / np.array(ranks))
 
         results = {'H@1': hit_1, 'H@3': hit_3, 'H@10': hit_10, 'MRR': mean_reciprocal_rank}
         if info:
+            print(info)
             print(results)
         return results
 
@@ -171,7 +228,7 @@ class Evaluator:
         model.eval()
         print(info)
         print(f'Num of triples {len(triple_idx)}')
-        print('** sequential computation ')
+        print('** Evaluation without batching')
         hits = dict()
         reciprocal_ranks = []
         # Iterate over test triples
@@ -206,7 +263,7 @@ class Evaluator:
             # 3.3 Filter scores of all triples containing filtered tail entities
             predictions_tails[filt_tails] = -np.Inf
             # 3.3.1 Filter entities outside of the range
-            if 'constraint' in self.executor.args.eval:
+            if 'constraint' in self.executor.args.eval_model:
                 predictions_tails[self.executor.dataset.range_constraints_per_rel[p]] = -np.Inf
             # 3.4 Reset the target's score
             predictions_tails[o] = target_value
@@ -224,8 +281,8 @@ class Evaluator:
             target_value = predictions_heads[s].item()
             # 4.3 Filter scores of all triples containing filtered head entities.
             predictions_heads[filt_heads] = -np.Inf
-            if isinstance(self.executor.args.eval, bool) is False:
-                if 'constraint' in self.executor.args.eval:
+            if isinstance(self.executor.args.eval_model, bool) is False:
+                if 'constraint' in self.executor.args.eval_model:
                     # 4.3.1 Filter entities that are outside the domain
                     predictions_heads[self.executor.dataset.domain_constraints_per_rel[p]] = -np.Inf
             predictions_heads[s] = target_value
@@ -274,6 +331,25 @@ class Evaluator:
         return results
 
     def eval_with_data(self, trained_model, triple_idx: np.ndarray, form_of_labelling: str):
+        if isinstance(self.executor.dataset.er_vocab, dict):
+            pass
+        else:
+            self.executor.dataset.er_vocab = self.executor.dataset.er_vocab.result()
+
+        if isinstance(self.executor.dataset.re_vocab, dict):
+            pass
+        else:
+            self.executor.dataset.re_vocab = self.executor.dataset.re_vocab.result()
+
+        if isinstance(self.executor.dataset.ee_vocab, dict):
+            pass
+        else:
+            self.executor.dataset.ee_vocab = self.executor.dataset.ee_vocab.result()
+
+        if isinstance(self.executor.dataset.domain_constraints_per_rel, dict):
+            pass
+        else:
+            self.executor.dataset.domain_constraints_per_rel, self.executor.dataset.range_constraints_per_rel = self.executor.dataset.constraints.result()
         """ Evaluate a trained model on a given a dataset"""
         if self.executor.args.scoring_technique == 'NegSample':
             return self.evaluate_lp(trained_model, triple_idx,

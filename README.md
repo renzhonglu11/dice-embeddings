@@ -6,20 +6,20 @@ Yet, using these frameworks in real-world applications becomes more challenging 
 
 We developed the DICE Embeddings framework to compute embeddings for large-scale knowledge graphs in a hardware-agnostic manner.
 To achieve this goal, we rely on
-1. [Pandas](https://pandas.pydata.org/) to use parallelism at preprocessing a large knowledge graph,
-2. [PyTorch](https://pytorch.org/) & [PytorchLightning](https://www.pytorchlightning.ai/) to learn knowledge graph embeddings via multi-CPUs, GPUs, TPUs or computing cluster, and
-3. [Gradio](https://gradio.app/) to ease the deployment of pre-trained models.
+1. **[Pandas](https://pandas.pydata.org/) & Co.** to use parallelism at preprocessing a large knowledge graph,
+2. **[PyTorch](https://pytorch.org/) & Co.** to learn knowledge graph embeddings via multi-CPUs, GPUs, TPUs or computing cluster, and
+3. **[Huggingface](https://huggingface.co/)** to ease the deployment of pre-trained models.
 
 **Why [Pandas](https://pandas.pydata.org/) & Co. ?**
-Pandas allows us to read, preprocess (e.g. removing literals) and index an input knowledge graph in parallel.
-Through parquet within pandas, a billion of triples can be read in parallel fashion. 
-Importantly, using frameworks based on Pandas (modin, vaex or polars) allow us to perform all necessary computations on a single CPU as well as a cluster of computers.
+A large knowledge graph can be read and preprocessed (e.g. removing literals) by pandas, modin, or polars in parallel.
+Through polars, a knowledge graph having more than 1 billion triples can be read in parallel fashion. 
+Importantly, using these frameworks allow us to perform all necessary computations on a single CPU as well as a cluster of computers.
 
-**Why [PyTorch](https://pytorch.org/) & [PytorchLightning](https://www.pytorchlightning.ai/) ?**
+**Why [PyTorch](https://pytorch.org/) & Co. ?**
 PyTorch is one of the most popular machine learning frameworks available at the time of writing. 
 PytorchLightning facilitates scaling the training procedure of PyTorch without boilerplate.
 In our framework, we combine [PyTorch](https://pytorch.org/) & [PytorchLightning](https://www.pytorchlightning.ai/).
-By this, we are able to train large knowledge graph embedding models with billions of parameters.
+Users can choose the trainer class (e.g., DDP by Pytorch) to train large knowledge graph embedding models with billions of parameters.
 PytorchLightning allows us to use state-of-the-art model parallelism techniques (e.g. Fully Sharded Training, FairScale, or DeepSpeed)
 without extra effort.
 With our framework, practitioners can directly use PytorchLightning for model parallelism to train gigantic embedding models.
@@ -38,13 +38,15 @@ To install dependencies:
 conda create -n dice python=3.9.12
 conda activate dice
 # Choose a backend
-pip3 install pandas==1.5.1 modin==0.16.2 vaex==4.14.0 polars==0.14.26 
+pip3 install pandas==1.5.1 
+pip3 install modin[ray]==0.16.2 or pip3 install modin[dask]==0.16.2
+pip3 install polars==0.14.26 
+pip3 install pyarrow==8.0.0
 pip3 install torch==1.13.0 
 pip3 install pytorch-lightning==1.6.4
 pip3 install scikit-learn==1.1.1
 pip3 install pytest==6.2.5
 pip3 install gradio==3.0.17
-pip3 install pyarrow==8.0.0
 ```
 To test the Installation
 ```
@@ -54,30 +56,31 @@ pytest -p no:warnings -x # it takes circa 15 minutes
 pytest -p no:warnings --lf # run only the last failed test
 pytest -p no:warnings --ff # to run the failures first and then the rest of the tests.
 ```
-## Pre-trained Models
-Please contact:  ```caglar.demir@upb.de ``` or ```caglardemir8@gmail.com ``` , if you lack hardware resources to obtain embeddings of a specific knowledge Graph.
-- [DBpedia version: 06-2022 Embeddings](https://hobbitdata.informatik.uni-leipzig.de/KGE/DBpediaQMultEmbeddings_03_07):
-  - Models: ConEx, QMult
-- [YAGO3-10 ConEx embeddings](https://hobbitdata.informatik.uni-leipzig.de/KGE/conex/YAGO3-10.zip)
-- [FB15K-237 ConEx embeddings](https://hobbitdata.informatik.uni-leipzig.de/KGE/conex/FB15K-237.zip)
-- [WN18RR ConEx embeddings](https://hobbitdata.informatik.uni-leipzig.de/KGE/conex/WN18RR.zip)
-- For more please look at [Hobbit Data](https://hobbitdata.informatik.uni-leipzig.de/KGE/)
-
-## Examples 
-> How to use the framework:`documents/using_dice_embedding_framework`.
-
-> Training different strategies: `documents/training_techniques`.
-
-## Using Pre-trained ConEx on DBpedia 03-2022
+## Applications
+### Conjunctive Query/Question Answering
+```python
+from core import KGE
+# (1) Load a pretrained KGE model on KGs/Family
+pre_trained_kge = KGE(path_of_pretrained_model_dir='Experiments/2022-12-08 11:46:33.654677')
+# (2) Answer the following conjunctive query question: To whom a sibling of F9M167 is married to?
+# (3) Decompose (2) into two query
+# (3.1) Who is a sibling of F9M167? => {F9F141,F9M157}
+# (3.2) To whom a results of (3.1) is married to ? {F9M142, F9F158}
+pre_trained_kge.predict_conjunctive_query(entity='<http://www.benchmark.org/family#F9M167>',
+                                          relations=['<http://www.benchmark.org/family#hasSibling>',
+                                                     '<http://www.benchmark.org/family#married>'], k=1)
+```
+### Triple Classification
+#### Using pre-trained ConEx on DBpedia 03-2022
 ```bash
 # To download a pretrained ConEx
 mkdir ConEx && cd ConEx && wget -r -nd -np https://hobbitdata.informatik.uni-leipzig.de/KGE/DBpedia/ConEx/ && cd ..
 ```
-### Triple Classification
 ```python
 from core import KGE
+# (1) Load a pretrained ConEx on DBpedia 
 pre_trained_kge = KGE(path_of_pretrained_model_dir='ConEx')
- 
+
 pre_trained_kge.triple_score(head_entity=["http://dbpedia.org/resource/Albert_Einstein"],relation=["http://dbpedia.org/ontology/birthPlace"],tail_entity=["http://dbpedia.org/resource/Ulm"]) # tensor([0.9309])
 pre_trained_kge.triple_score(head_entity=["http://dbpedia.org/resource/Albert_Einstein"],relation=["http://dbpedia.org/ontology/birthPlace"],tail_entity=["http://dbpedia.org/resource/German_Empire"]) # tensor([0.9981])
 pre_trained_kge.triple_score(head_entity=["http://dbpedia.org/resource/Albert_Einstein"],relation=["http://dbpedia.org/ontology/birthPlace"],tail_entity=["http://dbpedia.org/resource/Kingdom_of_Württemberg"]) # tensor([0.9994])
@@ -91,7 +94,6 @@ from core import KGE
 pre_trained_kge = KGE(path_of_pretrained_model_dir='ConEx')
 pre_trained_kge.predict_topk(head_entity=["http://dbpedia.org/resource/Albert_Einstein"],tail_entity=["http://dbpedia.org/resource/Ulm"])
 ```
-
 ### Entity Prediction
 ```python
 from core import KGE
@@ -99,6 +101,17 @@ pre_trained_kge = KGE(path_of_pretrained_model_dir='ConEx')
 pre_trained_kge.predict_topk(head_entity=["http://dbpedia.org/resource/Albert_Einstein"],relation=["http://dbpedia.org/ontology/birthPlace"]) 
 pre_trained_kge.predict_topk(relation=["http://dbpedia.org/ontology/birthPlace"],tail_entity=["http://dbpedia.org/resource/Albert_Einstein"]) 
 ```
+### Finding Missing Triples
+```python
+from core import KGE
+pre_trained_kge = KGE(path_of_pretrained_model_dir='ConEx')
+missing_triples = pre_trained_kge.find_missing_triples(confidence=0.95)
+```
+
+## How to Train a KGE model 
+> How to use the framework:`documents/using_dice_embedding_framework`.
+
+> Training different strategies: `documents/training_techniques`.
 
 ## How to Deploy
 Any pretrained model can be deployed with an ease. Moreover, anyone on the internet can use the pretrained model with ```--share``` parameter.
@@ -112,6 +125,14 @@ Running on public URL: https://54886.gradio.app
 This share link expires in 72 hours. For free permanent hosting, check out Spaces (https://huggingface.co/spaces)
 ```
 ![alt text](core/figures/deploy_qmult_family.png)
+## Pre-trained Models
+Please contact:  ```caglar.demir@upb.de ``` or ```caglardemir8@gmail.com ``` , if you lack hardware resources to obtain embeddings of a specific knowledge Graph.
+- [DBpedia version: 06-2022 Embeddings](https://hobbitdata.informatik.uni-leipzig.de/KGE/DBpediaQMultEmbeddings_03_07):
+  - Models: ConEx, QMult
+- [YAGO3-10 ConEx embeddings](https://hobbitdata.informatik.uni-leipzig.de/KGE/conex/YAGO3-10.zip)
+- [FB15K-237 ConEx embeddings](https://hobbitdata.informatik.uni-leipzig.de/KGE/conex/FB15K-237.zip)
+- [WN18RR ConEx embeddings](https://hobbitdata.informatik.uni-leipzig.de/KGE/conex/WN18RR.zip)
+- For more please look at [Hobbit Data](https://hobbitdata.informatik.uni-leipzig.de/KGE/)
 ### Documentation
 In documents folder, we explained many details about knowledge graphs, knowledge graph embeddings, training strategies and many more background knowledge.
 We continuously work on documenting each and every step to increase the readability of our code.

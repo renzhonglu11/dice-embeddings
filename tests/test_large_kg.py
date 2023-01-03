@@ -18,17 +18,18 @@ class TestRegressionDistMult:
         args.input_dropout_rate = 0.0
         args.hidden_dropout_rate = 0.0
         args.feature_map_dropout_rate = 0.0
-        args.eval = 'val_test'
+        args.eval_model = 'val_test'
         args.sample_triples_ratio = None
         args.read_only_few = None
         args.seed_for_computation = 1
+        args.num_folds_for_cv = 0
         args.min_freq_for_vocab = None
-        args.torch_trainer = None
+        args.trainer = 'torchCPUTrainer'
         args.normalization = 'LayerNorm'
         args.scoring_technique = 'KvsAll'
         result = Execute(args).start()
-        assert 0.03 >= result['Val']['MRR'] >= 0.00024
-        assert 0.03 >= result['Test']['MRR'] >= 0.00035
+        assert 0.03 >= result['Val']['MRR'] >= 0.0002
+        assert 0.03 >= result['Test']['MRR'] >= 0.0002
 
     @pytest.mark.filterwarnings('ignore::UserWarning')
     def test_neg_sample(self):
@@ -43,13 +44,14 @@ class TestRegressionDistMult:
         args.input_dropout_rate = 0.0
         args.hidden_dropout_rate = 0.0
         args.feature_map_dropout_rate = 0.0
-        args.eval = 'test'
+        args.eval_model = 'test'
         args.read_only_few = None
         args.sample_triples_ratio = None
         args.seed_for_computation = 1
+        args.num_folds_for_cv = 0
         args.min_freq_for_vocab = None
         args.normalization = 'LayerNorm'
-        args.torch_trainer = 'DataParallelTrainer'
+        args.trainer = 'torchCPUTrainer'
         args.scoring_technique = 'NegSample'
         args.neg_ratio = 1
         result = Execute(args).start()

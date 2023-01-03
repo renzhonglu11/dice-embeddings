@@ -22,7 +22,7 @@ class TestDefaultParams:
         args.sample_triples_ratio = None
         args.read_only_few = None
         args.num_folds_for_cv = None
-        args.torch_trainer = 'DataParallelTrainer'
+        args.trainer = 'torchCPUTrainer'
         Execute(args).start()
 
     @pytest.mark.filterwarnings('ignore::UserWarning')
@@ -42,7 +42,7 @@ class TestDefaultParams:
         args.sample_triples_ratio = None
         args.read_only_few = None
         args.num_folds_for_cv = None
-        args.torch_trainer = 'DataParallelTrainer'
+        args.trainer = 'torchCPUTrainer'
         Execute(args).start()
 
     @pytest.mark.filterwarnings('ignore::UserWarning')
@@ -62,9 +62,7 @@ class TestDefaultParams:
         args.sample_triples_ratio = None
         args.read_only_few = None
         args.sample_triples_ratio = None
-        # args.torch_trainer = 'DataParallelTrainer'
-        args.torch_trainer = 'None'
-        # args.use_pykeen=True
+        args.trainer = None
         Execute(args).start()
 
     @pytest.mark.filterwarnings('ignore::UserWarning')
@@ -84,7 +82,7 @@ class TestDefaultParams:
         args.sample_triples_ratio = None
         args.read_only_few = None
         args.num_folds_for_cv = None
-        args.torch_trainer = 'DataParallelTrainer'
+        args.trainer = 'torchCPUTrainer'
         Execute(args).start()
 
     @pytest.mark.filterwarnings('ignore::UserWarning')
@@ -104,7 +102,7 @@ class TestDefaultParams:
         args.sample_triples_ratio = None
         args.read_only_few = None
         args.num_folds_for_cv = None
-        args.torch_trainer = 'DataParallelTrainer'
+        args.trainer = None
         Execute(args).start()
 
     @pytest.mark.filterwarnings('ignore::UserWarning')
@@ -124,7 +122,7 @@ class TestDefaultParams:
         args.sample_triples_ratio = None
         args.read_only_few = None
         args.sample_triples_ratio = None
-        args.torch_trainer = 'DataParallelTrainer'
+        args.trainer = 'torchCPUTrainer'
         Execute(args).start()
 
     def test_distmult(self):
@@ -143,8 +141,7 @@ class TestDefaultParams:
         args.sample_triples_ratio = None
         args.read_only_few = None
         args.num_folds_for_cv = None
-        args.torch_trainer = 'DataParallelTrainer'
-        args.neg_ratio = 1
+        args.trainer = 'torchCPUTrainer'
         Execute(args).start()
 
 

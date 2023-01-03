@@ -13,8 +13,9 @@ class DistMult(BaseKGE):
     def __init__(self, args):
         super().__init__(args)
         self.name = 'DistMult'
-        # Adding this reduces performance in training and generalization
-        self.hidden_normalizer = lambda x: x
+        self.entity_embeddings = nn.Embedding(self.num_entities, self.embedding_dim)
+        self.relation_embeddings = nn.Embedding(self.num_relations, self.embedding_dim)
+        self.param_init(self.entity_embeddings.weight.data), self.param_init(self.relation_embeddings.weight.data)
 
     def forward_triples(self, x: torch.Tensor) -> torch.Tensor:
         # (1) Retrieve embeddings & Apply Dropout & Normalization.
@@ -22,10 +23,16 @@ class DistMult(BaseKGE):
         # (2) Compute the score
         return (self.hidden_dropout(self.hidden_normalizer(head_ent_emb * rel_ent_emb)) * tail_ent_emb).sum(dim=1)
 
-    def forward_k_vs_all(self, x: torch.Tensor):
+    def forward_k_vs_all(self, x: torch.LongTensor):
         emb_head_real, emb_rel_real = self.get_head_relation_representation(x)
         return torch.mm(self.hidden_dropout(self.hidden_normalizer(emb_head_real * emb_rel_real)),
                         self.entity_embeddings.weight.transpose(1, 0))
+
+    def forward_k_vs_sample(self, x: torch.LongTensor, target_entity_idx: torch.LongTensor):
+        emb_head_real, emb_rel_real = self.get_head_relation_representation(x)
+        hr = self.hidden_dropout(self.hidden_normalizer(emb_head_real * emb_rel_real)).unsqueeze(1)
+        t = self.entity_embeddings(target_entity_idx).transpose(1, 2)
+        return torch.bmm(hr, t).squeeze(1)
 
 
 class TransE(BaseKGE):
@@ -37,12 +44,11 @@ class TransE(BaseKGE):
     def __init__(self, args):
         super().__init__(args)
         self.name = 'TransE'
-        # Adding this reduces performance in training and generalization
-        self.hidden_normalizer = lambda x: x
-        self.loss = torch.nn.BCELoss()
         self._norm = 2
         self.margin = 4
-
+        self.entity_embeddings = nn.Embedding(self.num_entities, self.embedding_dim)
+        self.relation_embeddings = nn.Embedding(self.num_relations, self.embedding_dim)
+        self.param_init(self.entity_embeddings.weight.data), self.param_init(self.relation_embeddings.weight.data)
     def forward_triples(self, x: torch.Tensor) -> torch.FloatTensor:
         # (1) Retrieve embeddings & Apply Dropout & Normalization.
         head_ent_emb, rel_ent_emb, tail_ent_emb = self.get_triple_representation(x)
@@ -50,16 +56,14 @@ class TransE(BaseKGE):
         # if d =0 sigma(5-0) => 1
         # if d =5 sigma(5-5) => 0.5
         # Update: sigmoid( \gamma - d)
-        distance = torch.nn.functional.pairwise_distance(head_ent_emb + rel_ent_emb, tail_ent_emb, p=self._norm)
-        scores = torch.sigmoid(self.margin - distance)
-        return scores
+        distance = self.margin - torch.nn.functional.pairwise_distance(head_ent_emb + rel_ent_emb, tail_ent_emb, p=self._norm)
+        return distance
 
     def forward_k_vs_all(self, x: torch.Tensor) -> torch.FloatTensor:
         emb_head_real, emb_rel_real = self.get_head_relation_representation(x)
         distance = torch.nn.functional.pairwise_distance(torch.unsqueeze(emb_head_real + emb_rel_real, 1),
                                                          self.entity_embeddings.weight, p=self._norm)
-        scores = torch.sigmoid(self.margin - distance)
-        return scores
+        return self.margin - distance
 
 
 class Shallom(BaseKGE):
@@ -71,7 +75,7 @@ class Shallom(BaseKGE):
         # Fixed
         shallom_width = int(2 * self.embedding_dim)
         self.entity_embeddings = nn.Embedding(self.num_entities, self.embedding_dim)
-        xavier_normal_(self.entity_embeddings.weight.data)
+        self.param_init(self.entity_embeddings.weight.data)
         self.shallom = nn.Sequential(nn.Dropout(self.input_dropout_rate),
                                      torch.nn.Linear(self.embedding_dim * 2, shallom_width),
                                      self.normalizer_class(shallom_width),
@@ -82,14 +86,14 @@ class Shallom(BaseKGE):
     def get_embeddings(self) -> Tuple[np.ndarray, None]:
         return self.entity_embeddings.weight.data.detach(), None
 
-    def forward_k_vs_all(self, x)-> torch.FloatTensor:
+    def forward_k_vs_all(self, x) -> torch.FloatTensor:
         e1_idx: torch.Tensor
         e2_idx: torch.Tensor
         e1_idx, e2_idx = x[:, 0], x[:, 1]
         emb_s, emb_o = self.entity_embeddings(e1_idx), self.entity_embeddings(e2_idx)
         return self.shallom(torch.cat((emb_s, emb_o), 1))
 
-    def forward_triples(self, x)-> torch.FloatTensor:
+    def forward_triples(self, x) -> torch.FloatTensor:
         """
 
         :param x:
@@ -102,19 +106,52 @@ class Shallom(BaseKGE):
         return scores_for_all_relations[:, x[:, 1]].flatten()
 
 
+class Pyke(BaseKGE):
+    """ A Physical Embedding Model for Knowledge Graphs """
+
+    def __init__(self, args):
+        super().__init__(args)
+        self.name = 'Pyke'
+        self.entity_embeddings = nn.Embedding(self.num_entities, self.embedding_dim)
+        self.relation_embeddings = nn.Embedding(self.num_relations, self.embedding_dim)
+        self.param_init(self.entity_embeddings.weight.data), self.param_init(self.relation_embeddings.weight.data)
+        self.loss = nn.TripletMarginLoss(margin=1.0, p=2)
+
+    def get_embeddings(self) -> Tuple[np.ndarray, Union[np.ndarray, None]]:
+        return self.entity_embeddings.weight.data.data.detach(), None
+
+    def loss_function(self, x: torch.FloatTensor, y=None) -> torch.FloatTensor:
+        anchor, positive, negative = x
+        return self.loss(anchor, positive, negative)
+
+    def forward_sequence(self, x: torch.LongTensor):
+        # (1) Anchor node Embedding: N, D
+        anchor = self.entity_embeddings(x[:, 0])
+        # (2) Positives and Negatives
+        pos, neg = torch.hsplit(x[:, 1:], 2)
+        # (3) Embeddings for Pos N, K, D
+        pos_emb = self.entity_embeddings(pos)
+        # (4) Embeddings for Negs N, K, D
+        neg_emb = self.entity_embeddings(neg)
+        # (5) Mean.
+        # N, D
+        mean_pos_emb = pos_emb.mean(dim=1)
+        mean_neg_emb = neg_emb.mean(dim=1)
+        return anchor, mean_pos_emb, mean_neg_emb
+
+
 """ On going works"""
-
-
 class CLf(BaseKGE):
     """Clifford:Embedding Space Search in Clifford Algebras"""
 
     def __init__(self, args):
         super().__init__(args)
         self.name = 'CLf'
-        # Adding this reduces performance in training and generalization
-        self.hidden_normalizer = lambda x: x
+        self.entity_embeddings = nn.Embedding(self.num_entities, self.embedding_dim)
+        self.relation_embeddings = nn.Embedding(self.num_relations, self.embedding_dim)
+        self.param_init(self.entity_embeddings.weight.data), self.param_init(self.relation_embeddings.weight.data)
 
-    def forward_triples(self, x: torch.Tensor)-> torch.FloatTensor:
+    def forward_triples(self, x: torch.Tensor) -> torch.FloatTensor:
         # (1) Retrieve embeddings & Apply Dropout & Normalization.
         head_ent_emb, rel_ent_emb, tail_ent_emb = self.get_triple_representation(x)
 
@@ -131,88 +168,12 @@ class CLf(BaseKGE):
                 a * b_prime + a_prime * b) + c_3prime * (a * c_prime + a_prime * c)
         return score_vec.sum(dim=1)
 
-    def forward_k_vs_all(self, x: torch.Tensor)-> torch.FloatTensor:
+    def forward_k_vs_all(self, x: torch.Tensor) -> torch.FloatTensor:
         emb_head_real, emb_rel_real = self.get_head_relation_representation(x)
         print('Hello')
         raise NotImplementedError('Implement scoring function for KvsAll')
 
-
-class DimAdaptiveDistMult(BaseKGE):
-
-    def __init__(self, args):
-        super().__init__(args)
-        self.name = 'AdaptiveDistMult'
-        # Init Embeddings
-        self.current_embedding_dim = 1
-        self.emb_ent_real = nn.Embedding(self.num_entities, self.current_embedding_dim)
-        self.emb_rel_real = nn.Embedding(self.num_relations, self.current_embedding_dim)
-        xavier_normal_(self.emb_ent_real.weight.data), xavier_normal_(self.emb_rel_real.weight.data)
-
-        self.losses = []
-        self.moving_average = 0
-        self.moving_average_interval = 10
-        self.add_dim_size = 1
-
-    def get_embeddings(self) -> Tuple[np.ndarray, np.ndarray]:
-        return self.emb_ent_real.weight.data.data.detach(), self.emb_rel_real.weight.data.detach()
-
-    def forward_k_vs_all(self, x: torch.Tensor):
-        e1_idx: torch.Tensor
-        rel_idx: torch.Tensor
-        e1_idx, rel_idx = x[:, 0], x[:, 1]
-        # (1)
-        # (1.1) Real embeddings of head entities
-        emb_head_real = self.emb_ent_real(e1_idx)
-        # (1.2) Real embeddings of relations
-        emb_rel_real = self.emb_rel_real(rel_idx)
-        return torch.mm(emb_head_real * emb_rel_real, self.emb_ent_real.weight.transpose(1, 0))
-
-    def forward_triples(self, x: torch.Tensor) -> torch.Tensor:
-        e1_idx: torch.Tensor
-        rel_idx: torch.Tensor
-        e2_idx: torch.Tensor
-        e1_idx, rel_idx, e2_idx = x[:, 0], x[:, 1], x[:, 2]
-        # (1)
-        emb_head_real = self.emb_ent_real(e1_idx)
-        emb_rel_real = self.emb_rel_real(rel_idx)
-        emb_tail_real = self.emb_ent_real(e2_idx)
-        return (emb_head_real * emb_rel_real * emb_tail_real).sum(dim=1)
-
-    def training_epoch_end(self, training_step_outputs):
-
-        if self.current_embedding_dim + self.add_dim_size < self.embedding_dim:
-            epoch_loss = float(training_step_outputs[0]['loss'].detach())
-            self.losses.append(epoch_loss)
-            if len(self.losses) % self.moving_average_interval == 0:
-                moving_average = sum(self.losses) / len(self.losses)
-                self.losses.clear()
-                diff = abs(moving_average - epoch_loss)
-
-                if diff > epoch_loss * .1:
-                    # do nothing
-                    pass
-                else:
-
-                    """
-
-                    # Either increase the embedding size or the multiplication
-                    print('\nDouble the embedding size') 
-                    # Leads to inferious results
-                    x = nn.Embedding(self.num_entities, self.add_dim_size)
-                    xavier_normal_(x.weight.data)
-                    self.emb_ent_real.weight = nn.Parameter(
-                        torch.cat((self.emb_ent_real.weight.detach(), x.weight.detach()), dim=1).data,
-                        requires_grad=True)
-                    x = nn.Embedding(self.num_relations, self.add_dim_size)
-                    xavier_normal_(x.weight.data)
-                    self.emb_rel_real.weight = nn.Parameter(
-                        torch.cat((self.emb_rel_real.weight.detach(), x.weight.detach()), dim=1).data,
-                        requires_grad=True)
-                    del x
-                    self.current_embedding_dim += self.add_dim_size
-                    """
-
-
+# TODO: need refactoring
 class KPDistMult(BaseKGE):
     """
     Named as KD-Rel-DistMult  in our paper

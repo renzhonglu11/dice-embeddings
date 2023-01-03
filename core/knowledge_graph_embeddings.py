@@ -1,93 +1,148 @@
 import os
 import time
-from typing import List, Tuple
+from typing import List, Tuple, Set
 import pandas as pd
 import torch
 from torch import optim
 from torch.utils.data import DataLoader
 from .abstracts import BaseInteractiveKGE
 from .dataset_classes import TriplePredictionDataset
+from tqdm import tqdm
 
 
 class KGE(BaseInteractiveKGE):
     """ Knowledge Graph Embedding Class for interactive usage of pre-trained models"""
+
     # @TODO: we can download the model if it is not present locally
     def __init__(self, path_of_pretrained_model_dir, construct_ensemble=False, model_name=None,
                  apply_semantic_constraint=False):
         super().__init__(path_of_pretrained_model_dir, construct_ensemble=construct_ensemble, model_name=model_name,
                          apply_semantic_constraint=apply_semantic_constraint)
 
-    def construct_input_and_output(self, head_entity: List[str], relation: List[str], tail_entity: List[str], labels):
+    def __str__(self):
+        return 'KGE | ' + str(self.model)
+
+    def predict_conjunctive_query(self, entity: str, relations: List[str], k: int = 1) -> Set[str]:
         """
-        Construct a data point
-        :param head_entity:
-        :param relation:
-        :param tail_entity:
-        :param labels:
-        :return:
+         Find an answer set for a conjunctive query
+
+
+        Parameter
+        ---------
+        entity: str
+
+        String representation of a selected entity.
+
+        relations: List[str]
+
+        String representations of selected relations.
+
+        k: int
+
+        Highest ranked k item.
+
+        Returns: Tuple
+        ---------
+
+        Highest K scores and entities
         """
-        idx_head_entity, idx_relation, idx_tail_entity = self.index_triple(head_entity, relation, tail_entity)
-        x = torch.hstack((idx_head_entity, idx_relation, idx_tail_entity))
-        # Hard Labels
-        labels: object = torch.FloatTensor(labels)
-        return x, labels
 
-    def train_cbd(self, head_entity, iteration=1, lr=.01, batch_size: int = None, neg_sample_ratio: int = 1,
-                  num_workers: int = os.cpu_count()):
+        assert isinstance(entity, str)
+        assert isinstance(relations, list)
+        assert len(entity) >= 1
+        assert len(relations) >= 1
+
+        results = {entity}
+        # Iterate over relations
+        while relations:
+            r = relations.pop(0)
+
+            tail_entities = set()
+            # Iterative over entities
+            while results:
+                e = results.pop()
+                # answers =: topK(f(e,r,?))
+                _, str_tail_entities = self.predict_topk(head_entity=[e], relation=[r], k=k)
+
+                if isinstance(str_tail_entities, str):
+                    tail_entities.add(str_tail_entities)
+                else:
+                    tail_entities.update(set(str_tail_entities))
+            # Accumulate results
+            results.update(tail_entities)
+
+        return results
+
+    def find_missing_triples(self, confidence: float, k: int = 10) -> Set:
         """
-        Train/Retrain model via applying KvsAll training/scoring technique on CBD of an head entity
+         Find missing triples
 
-        Given a head_entity,
-        1) Build {r | (h r x) \in G)
-        2) Build x:=(h,r), y=[0.....,1]
-        3) Construct (2) as a batch
-        4) Train
+         Iterative over a set of entities E and a set of relation R : \forall e \in E and \forall r \in R f(e,r,x)
+         Return (e,r,x)\not\in G and  f(e,r,x) > confidence
+
+        Parameter
+        ---------
+        confidence: float
+
+        A threshold for an output of a sigmoid function given a triple.
+
+        k: int
+
+        Highest ranked k item to select triples with f(e,r,x) > confidence .
+
+        Returns: Set
+        ---------
+
+        {(e,r,x) | f(e,r,x) > confidence \land (e,r,x) \not\in G
         """
-        start_time = time.time()
-        assert len(head_entity) == 1
-        # (1) Get integer index of head entity.
-        try:
-            idx_head_entity = self.entity_to_idx.loc[head_entity]['entity'].values[0]
-        except KeyError as e:
-            print(f'Exception:\t {str(e)}')
-            return
 
-        print(f'\nExtracting relevant relations for training from CBD of {head_entity[0]}...')
-        # (2) Select triples that (1) occur in.
-        triples: pd.DataFrame
-        triples = self.train_set[self.train_set['subject'] == idx_head_entity].values
-        print(f'Frequency of {head_entity} = {len(triples)}', end='\t')
+        assert 1.0 >= confidence >= 0.0
+        assert top >= 1
 
-        # (3) create labels
-        if batch_size is None:
-            batch_size = max(len(triples) // 10, 1)
+        # (2) Get entities
+        entities = self.entity_to_idx.index.to_list()
+        # (3) Get relations
+        relations = self.relation_to_idx.index.to_list()
+        # (4) A set of inferred triples
+        extended_triples = set()
+        print(f'Number of entities:{len(entities)} \t Number of relations:{len(relations)}')
+        # (5) Cartesian Product over entities and relations
+        # (5.1) Iterate over entities
+        print('Finding missing triples..')
+        for str_head_entity in (pbar := tqdm(entities)):
+            idx_entity = entities.index(str_head_entity)
+            # (5.1) Iterate over relations
+            for str_relation in relations:
+                # (5.2) \forall e \in Entities store a tuple of scoring_func(head,relation,e) and e
+                # (5.3.) Sort (5.2) and return top  tuples
+                predicted_scores, str_tail_entities = self.predict_topk(head_entity=[str_head_entity],
+                                                                        relation=[str_relation],
+                                                                        k=k)
+                # (5.4) Iterate over 5.3
+                for predicted_score, str_entity in zip(predicted_scores, str_tail_entities):
+                    # (5.5) If score is less than 99% ignore it
+                    if predicted_score < confidence:
+                        break
+                    else:
+                        # (5.6) Check whether this triple exists in KG
+                        idx_relation = relations.index(str_relation)
+                        # False if 0, otherwise 1
+                        is_in = bool(
+                            len(self.train_set[(self.train_set["subject"] == idx_entity) &
+                                               (self.train_set["relation"] == idx_relation) &
+                                               (self.train_set["object"] == entities.index(
+                                                   str_entity))]))
+                        # (5.7) If (5.6) is true, ignore it
+                        if is_in:
+                            continue
+                        else:
+                            # (5.8) Remember it
+                            # n_triple = f"<{str_head_entity}>\t<{str_relation}>\t<{str_entity}>\t.\n"
+                            # print(n_triple)
+                            extended_triples.add((str_head_entity, str_relation, str_entity))
+                            pbar.set_description_str(f'Number of found missing triples: {len(extended_triples)}')
 
-        train_set = TriplePredictionDataset(triples,
-                                            num_entities=self.num_entities,
-                                            num_relations=self.num_relations, neg_sample_ratio=neg_sample_ratio)
-        del triples
-        data_loader = DataLoader(train_set,
-                                 batch_size=batch_size,
-                                 num_workers=num_workers,
-                                 collate_fn=train_set.collate_fn)
-
-        # (4) Train
-        self.set_model_train_mode()
-        optimizer = optim.Adam(self.model.parameters(), lr=lr, weight_decay=.00001)
-        print('\nIteration starts.')
-
-        for epoch in range(iteration):
-            epoch_loss = 0
-            for x, y in data_loader:
-                optimizer.zero_grad()
-                outputs = self.model(x)
-                loss = self.model.loss(outputs, y)
-                epoch_loss += loss.item()
-                loss.backward()
-                optimizer.step()
-            print(f"Iteration:{epoch}\t Loss:{epoch_loss:.10f}")
-        self.set_model_eval_mode()
-        print(f'Online Training took {time.time() - start_time:.4f} seconds.')
+        return extended_triples
 
     def train_triples(self, head_entity: List[str], relation: List[str], tail_entity: List[str], labels: List[float],
                       iteration=2, lr=.1):

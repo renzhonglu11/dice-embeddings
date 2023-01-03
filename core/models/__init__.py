@@ -5,3 +5,4 @@ from .quaternion import *
 from .octonion import *
 from .pykeen_LCWALitModule import *
 from .pykeen_SLCWALitModule import *
+from .barlow_twins import *
