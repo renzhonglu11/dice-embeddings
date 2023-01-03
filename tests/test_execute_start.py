@@ -132,7 +132,7 @@ class TestDefaultParams:
         args.model = 'DistMult'
         args.num_epochs = 1
         args.scoring_technique = 'NegSample'
-        args.path_dataset_folder = 'KGs/UMLS'
+        args.path_dataset_folder = 'KGs/Nations'
         args.num_epochs = 10
         args.batch_size = 1024
         args.lr = 0.01
