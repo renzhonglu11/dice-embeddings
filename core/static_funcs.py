@@ -1,4 +1,5 @@
 import os
+from typing import AnyStr
 import numpy as np
 import torch
 import datetime
@@ -199,11 +200,14 @@ def model_fitting(trainer, model, train_dataloaders) -> None:
     assert trainer.attributes.max_epochs == trainer.attributes.min_epochs
     print(
         f'NumOfDataPoints:{len(train_dataloaders.dataset)} | NumOfEpochs:{trainer.attributes.max_epochs} | LearningRate:{model.learning_rate} | BatchSize:{trainer.attributes.batch_size} | EpochBatchsize:{len(train_dataloaders)}')
+    if isinstance(model, LitModule):
+        trainer.fit(model)
+        print(f'Model fitting is done!')
+        return
     trainer.fit(model, train_dataloaders=train_dataloaders)
     print(f'Model fitting is done!')
 
-    trainer.fit(model, train_dataloaders=train_dataloaders)
-    print(f"Model fitting is done!")
+
 
 def save_checkpoint_model(trainer, model, path: str) -> None:
     """ Store Pytorch model into disk"""

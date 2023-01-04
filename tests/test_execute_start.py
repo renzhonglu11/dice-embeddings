@@ -62,7 +62,8 @@ class TestDefaultParams:
         args.sample_triples_ratio = None
         args.read_only_few = None
         args.sample_triples_ratio = None
-        args.trainer = None
+        args.trainer = "PL"
+       
         Execute(args).start()
 
     @pytest.mark.filterwarnings('ignore::UserWarning')
@@ -142,6 +143,7 @@ class TestDefaultParams:
         args.read_only_few = None
         args.num_folds_for_cv = None
         args.trainer = 'torchCPUTrainer'
+        args.neg_ratio = 1
         Execute(args).start()
 
 

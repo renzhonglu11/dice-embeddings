@@ -21,7 +21,7 @@ def template(model_name):
     args.sample_triples_ratio = None
     args.read_only_few = None
     args.sample_triples_ratio = None
-    args.torch_trainer = "None"
+    args.trainer = "PL"
     args.neg_ratio = 1
     args.pykeen_model_kwargs = dict(
         embedding_dim=args.embedding_dim, loss="bcewithlogits",
@@ -118,7 +118,7 @@ class TestPykeen:
         args.sample_triples_ratio = None
         args.read_only_few = None
         args.sample_triples_ratio = None
-        args.torch_trainer = "None"
+        args.torch_trainer = "PL"
         args.neg_ratio = 1
         args.use_SLCWALitModule = False
         args.pykeen_model_kwargs = dict(
