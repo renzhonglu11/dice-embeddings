@@ -4,14 +4,15 @@
     // For more information, visit: https://go.microsoft.com/fwlink/?linkid=830387
     "version": "0.2.0",
     "configurations": [
-        
         {
-            "name": "Python: Current File",
+            "name": "Python: Debug Tests",
             "type": "python",
             "request": "launch",
             "program": "${file}",
-            "console": "integratedTerminal",
-            "justMyCode": false
-        }
+            "purpose": ["debug-test"],
+            "console": "internalConsole", // defines that the configuration should be used when debugging tests in VS Code
+            "justMyCode": false,
+            "env": {"PL_TORCH_DISTRIBUTED_BACKEND":"gloo"},
+          }
     ]
 }

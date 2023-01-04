@@ -2,7 +2,7 @@ import torch.utils.data
 from pykeen import predict
 import torch
 import numpy as np
-from typing import Tuple
+from typing import Dict, Tuple
 
 
 class Pykeen_Module:
@@ -57,3 +57,14 @@ class Pykeen_Module:
         # https://twitter.com/PyTorch/status/1437838242418671620?s=20&t=8pEheJu4kRaLyJHBBLUvZA (solution)
         return predict.predict_triples(model=self.model, triples=x,).scores.clone()
 
+
+    def mem_of_model(self) -> Dict:
+        """ Size of model in MB and number of params"""
+        # https://discuss.pytorch.org/t/finding-model-size/130275/2
+        # (2) Store NumParam and EstimatedSizeMB
+        num_params = sum(p.numel() for p in self.parameters())
+        # Not quite sure about EstimatedSizeMB ?
+        buffer_size = 0
+        for buffer in self.buffers():
+            buffer_size += buffer.nelement() * buffer.element_size()
+        return {'EstimatedSizeMB': (num_params + buffer_size) / 1024 ** 2, 'NumParam': num_params}

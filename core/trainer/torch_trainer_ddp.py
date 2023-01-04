@@ -11,7 +11,7 @@ from torch.utils.data import Dataset, DataLoader
 import pandas as pd
 import sys
 from core.static_funcs_training import efficient_zero_grad
-
+import platform
 
 # DDP with gradiant accumulation https://gist.github.com/mcarilli/bf013d2d2f4b4dd21ade30c9b52d5e2e
 
@@ -198,8 +198,11 @@ def ddp_setup(rank: int, world_size: int):
     """
     os.environ['MASTER_ADDR'] = 'localhost'
     os.environ['MASTER_PORT'] = '1234'
+    backend = 'nccl'
     # initialize the process group, nccl
     # gloo, mpi or ncclhttps://pytorch.org/docs/stable/distributed.html#torch.distributed.init_process_group
-    dist.init_process_group(backend='nccl',  # NVIDIA Collection Communication Library
+    if platform.system().lower() == 'windows': 
+        backend = 'gloo' # windows doesnt support NCCL
+    dist.init_process_group(backend=backend,  # NVIDIA Collection Communication Library
                             rank=rank,
                             world_size=world_size)

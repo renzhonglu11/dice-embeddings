@@ -214,6 +214,10 @@ class DICE_Trainer:
             self.dataset.train_set = None
             self.dataset.valid_set = None
             self.dataset.test_set = None
+        from pykeen.contrib.lightning import LitModule
+        if isinstance(model,LitModule): # pykeen alredy included its dataloader in the model
+            self.trainer.fit(model)
+            return model, form_of_labelling
         self.trainer.fit(model, train_dataloaders=train_dataloaders)
         return model, form_of_labelling
 

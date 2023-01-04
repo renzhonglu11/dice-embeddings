@@ -32,3 +32,21 @@ class TestCallback:
         args.embedding_dim = 32
         args.trainer = 'PL'
         Execute(args).start()
+
+
+    @pytest.mark.filterwarnings('ignore::UserWarning')
+    def test_aconex_torchDDP_trainer(self):
+        args = argparse_default([])
+        args.model = 'AConEx'
+        args.num_epochs = 1
+        args.scoring_technique = 'KvsAll'
+        args.path_dataset_folder = 'KGs/UMLS'
+        args.num_epochs = 10
+        args.batch_size = 1024
+        args.lr = 0.01
+        args.embedding_dim = 32
+        args.trainer = 'torchDDP'
+        Execute(args).start()
+
+
+
