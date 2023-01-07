@@ -428,6 +428,7 @@ def get_pykeen_model(model_name, args):
             model_name=actual_name,
             model_kwargs=args["pykeen_model_kwargs"],
             batch_size=args["batch_size"],
+            args = args
         )
     else:
         model = MyLCWALitModule(
@@ -436,6 +437,7 @@ def get_pykeen_model(model_name, args):
             model_name=actual_name,
             model_kwargs=args["pykeen_model_kwargs"],
             batch_size=args["batch_size"],
+            args = args
         )
     return model
 

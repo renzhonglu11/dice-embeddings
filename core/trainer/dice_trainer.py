@@ -16,7 +16,7 @@ import pandas as pd
 from sklearn.model_selection import KFold
 import copy
 from typing import List, Tuple
-
+from pykeen.contrib.lightning import LitModule
 
 def initialize_trainer(args, callbacks: List, plugins: List) -> pl.Trainer:
     """ Initialize Trainer from input arguments """
@@ -214,7 +214,8 @@ class DICE_Trainer:
             self.dataset.train_set = None
             self.dataset.valid_set = None
             self.dataset.test_set = None
-        from pykeen.contrib.lightning import LitModule
+       
+        
         if isinstance(model,LitModule): # pykeen alredy included its dataloader in the model
             self.trainer.fit(model)
             return model, form_of_labelling

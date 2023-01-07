@@ -21,6 +21,7 @@ def template(model_name):
     args.sample_triples_ratio = None
     args.read_only_few = None
     args.sample_triples_ratio = None
+    # args.trainer = "PL"
     args.trainer = "PL"
     args.neg_ratio = 1
     args.pykeen_model_kwargs = dict(
