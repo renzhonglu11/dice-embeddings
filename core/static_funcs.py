@@ -13,9 +13,8 @@ import pandas
 import polars
 import functools
 import pickle
-
-enable_log = False
-
+import os
+import psutil
 
 def timeit(func):
     @functools.wraps(func)
@@ -24,21 +23,8 @@ def timeit(func):
         result = func(*args, **kwargs)
         end_time = time.perf_counter()
         total_time = end_time - start_time
-        if enable_log:
-            if args is not None:
-                s_args = [type(i) for i in args]
-            else:
-                s_args = args
-            if kwargs is not None:
-                s_kwargs = {k: type(v) for k, v in kwargs.items()}
-            else:
-                s_kwargs = kwargs
-            print(f'Function {func.__name__} with  Args:{s_args} | Kwargs:{s_kwargs} took {total_time:.4f} seconds')
-        else:
-            print(f'Took {total_time:.4f} seconds')
-
+        print(f'Took {total_time:.4f} seconds | Current Memory Usage {psutil.Process(os.getpid()).memory_info().rss / 1000000: .5} in MB')
         return result
-
     return timeit_wrapper
 
 import types
@@ -74,9 +60,7 @@ def select_model(
         return intialize_model(args)
 
 
-def load_model(
-    path_of_experiment_folder, model_name="model.pt"
-) -> Tuple[BaseKGE, pd.DataFrame, pd.DataFrame]:
+def load_model(path_of_experiment_folder, model_name='model.pt') -> Tuple[BaseKGE, dict, dict]:
     """ Load weights and initialize pytorch module from namespace arguments"""
     print(f"Loading model {model_name}...", end=" ")
     start_time = time.time()
@@ -219,7 +203,6 @@ def store(trainer,
     :return:
     """
     assert full_storage_path is not None
-    assert dataset is not None
     assert isinstance(model_name, str)
     assert len(model_name) > 1
 
@@ -227,6 +210,7 @@ def store(trainer,
     save_checkpoint_model(trainer=trainer,
                           model=trained_model, path=full_storage_path + f'/{model_name}.pt')
     if save_as_csv:
+        raise NotImplementedError('Should be done in post processing')
         # (2.1) Get embeddings.
         # import pdb; pdb.set_trace()
         entity_emb, relation_ebm = trained_model.get_embeddings()
@@ -343,6 +327,7 @@ def read_or_load_kg(args, cls):
              path_for_deserialization=args.path_experiment_folder if hasattr(args, 'path_experiment_folder') else None,
              backend=args.backend)
     print(f'Preprocessing took: {time.time() - start_time:.3f} seconds')
+    # (2) Share some info about data for easy access.
     print(kg.description_of_input)
     return kg
 

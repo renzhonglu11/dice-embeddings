@@ -1,5 +1,5 @@
 from main import argparse_default
-from core.executer import Execute
+from core.executer import Execute, ContinuousExecute
 import sys
 import pytest
 
@@ -9,14 +9,13 @@ class TestRegressionAConEx:
     def test_k_vs_all(self):
         args = argparse_default([])
         args.model = 'AConEx'
-        args.scoring_technique = 'KvsAll'
+        args.scoring_technique = 'KvsSample'
         args.optim = 'Adam'
         args.path_dataset_folder = 'KGs/UMLS'
-        args.num_epochs = 10
-        args.batch_size = 1024
+        args.num_epochs = 5
+        args.batch_size = 4096
         args.lr = 0.1
         args.embedding_dim = 32
-        args.num_of_output_channels = 32
         args.input_dropout_rate = 0.0
         args.hidden_dropout_rate = 0.0
         args.feature_map_dropout_rate = 0.0
@@ -24,9 +23,14 @@ class TestRegressionAConEx:
         args.read_only_few = None
         args.sample_triples_ratio = None
         args.num_folds_for_cv = None
-        args.normalization = 'BatchNorm1d'
-        args.init_param = 'xavier_normal'
+        args.normalization = 'LayerNorm'
         args.trainer = 'torchCPUTrainer'
+        args.init_param = 'xavier_normal'
         result = Execute(args).start()
-        assert 0.70 >= result['Train']['MRR'] >= 0.69
-        assert 0.57 >= result['Train']['H@1'] >= 0.55
+
+        args.path_experiment_folder = result['path_experiment_folder']
+        cl_result = ContinuousExecute(args).continual_start()
+
+        assert cl_result['Train']['H@10'] >= result['Train']['H@10']
+        assert cl_result['Val']['H@10'] >= result['Val']['H@10']
+        assert cl_result['Test']['H@10'] >= result['Test']['H@10']

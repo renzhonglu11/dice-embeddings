@@ -4,29 +4,24 @@ import sys
 import pytest
 
 
-class TestRegressionAConEx:
+class TestDefaultParams:
     @pytest.mark.filterwarnings('ignore::UserWarning')
-    def test_k_vs_all(self):
+    def test_shallom(self):
         args = argparse_default([])
-        args.model = 'AConEx'
+        args.model = 'Shallom'
+        args.num_epochs = 1
         args.scoring_technique = 'KvsAll'
-        args.optim = 'Adam'
         args.path_dataset_folder = 'KGs/UMLS'
         args.num_epochs = 10
         args.batch_size = 1024
-        args.lr = 0.1
+        args.lr = 0.01
         args.embedding_dim = 32
-        args.num_of_output_channels = 32
         args.input_dropout_rate = 0.0
         args.hidden_dropout_rate = 0.0
         args.feature_map_dropout_rate = 0.0
-        args.eval_model = 'train_val_test'
-        args.read_only_few = None
         args.sample_triples_ratio = None
+        args.read_only_few = None
         args.num_folds_for_cv = None
-        args.normalization = 'BatchNorm1d'
-        args.init_param = 'xavier_normal'
+        args.gradient_accumulation_steps=5
         args.trainer = 'torchCPUTrainer'
-        result = Execute(args).start()
-        assert 0.70 >= result['Train']['MRR'] >= 0.69
-        assert 0.57 >= result['Train']['H@1'] >= 0.55
+        Execute(args).start()
