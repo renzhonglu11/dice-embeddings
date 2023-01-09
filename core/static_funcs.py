@@ -214,22 +214,60 @@ def store(trainer,
                           model=trained_model, path=full_storage_path + f'/{model_name}.pt')
     if save_as_csv:
         entity_emb, relation_ebm = trained_model.get_embeddings()
+        if entity_emb is None:
+            return
+        if isinstance(entity_emb, list) and len(entity_emb) == 0:
+            return
         entity_to_idx = pickle.load(open(full_storage_path + '/entity_to_idx.p', 'rb'))
         entity_str = entity_to_idx.keys()
         # Ensure that the ordering is correct.
         assert list(range(0, len(entity_str))) == list(entity_to_idx.values())
-        save_embeddings(entity_emb.numpy(), indexes=entity_str,
+        # TODO: model of pykeen may have empty entity_emb. Logic need to be changed here
+
+        if isinstance(entity_emb, list) and len(entity_emb) >= 1:
+                for i in range(len(entity_emb)):
+                    save_embeddings(
+                        entity_emb[i].numpy(),
+                        indexes=entity_str,
+                        path=full_storage_path
+                        + "/"
+                        + trained_model.name
+                        + "_entity_embeddings_"
+                        + str(i)
+                        + ".csv",
+                    )
+        else:
+            save_embeddings(entity_emb.numpy(), indexes=entity_str,
                         path=full_storage_path + '/' + trained_model.name + '_entity_embeddings.csv')
         del entity_to_idx, entity_str, entity_emb
-        if relation_ebm is not None:
-            relation_to_idx = pickle.load(open(full_storage_path + '/relation_to_idx.p', 'rb'))
-            relations_str = relation_to_idx.keys()
 
+        if isinstance(relation_ebm, list) and len(relation_ebm) == 0:
+            return
+        if relation_ebm is None:
+            return
+
+        relation_to_idx = pickle.load(open(full_storage_path + '/relation_to_idx.p', 'rb'))
+        relations_str = relation_to_idx.keys()
+        
+        if isinstance(relation_ebm, list) and len(relation_ebm) >= 1:
+                for i in range(len(relation_ebm)):
+                    save_embeddings(
+                        relation_ebm[i].numpy(),
+                        indexes=relations_str,
+                        path=full_storage_path
+                        + "/"
+                        + trained_model.name
+                        + "_relation_embeddings_"
+                        + str(i)
+                        + ".csv",
+                    )
+        else:
             save_embeddings(relation_ebm.numpy(), indexes=relations_str,
                             path=full_storage_path + '/' + trained_model.name + '_relation_embeddings.csv')
-            del relation_ebm,relations_str,relation_to_idx
-        else:
-            pass
+  
+
+        del relation_ebm,relations_str,relation_to_idx
+
 
 
 def add_noisy_triples(train_set: pd.DataFrame, add_noise_rate: float) -> pd.DataFrame:
@@ -492,6 +530,8 @@ def save_embeddings(embeddings: np.ndarray, indexes, path: str) -> None:
         )
         print(e)
     del df
+
+   
 
 
 def random_prediction(pre_trained_kge):

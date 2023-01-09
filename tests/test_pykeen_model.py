@@ -30,6 +30,7 @@ def template(model_name):
     args.interaction_kwargs = None
     args.use_SLCWALitModule = False
     args.num_core = 2
+    args.save_embeddings_as_csv = True
     return args
 
 
