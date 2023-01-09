@@ -48,6 +48,7 @@ class AbstractTrainer:
         -------
         None
         """
+        
         for c in self.callbacks:
             c.on_fit_start(*args, **kwargs)
 
@@ -66,6 +67,7 @@ class AbstractTrainer:
         -------
         None
         """
+        
         for c in self.callbacks:
             c.on_fit_end(*args, **kwargs)
 

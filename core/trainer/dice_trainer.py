@@ -168,6 +168,11 @@ class DICE_Trainer:
             assert self.args.scoring_technique in ['KvsSample', '1vsAll', 'KvsAll', 'NegSample']
             train_loader = self.initialize_dataloader(dataset, form_of_labelling)
             torch.save(train_loader, self.storage_path + '/TrainDataloader.pth')
+
+            if(isinstance(model,LitModule)):
+                self.trainer.fit(model)
+                return model, form_of_labelling
+
             self.trainer.fit(model, train_dataloaders=train_loader)
             return model, form_of_labelling
 

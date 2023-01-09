@@ -2,7 +2,7 @@ from main import argparse_default
 from core.executer import Execute
 import sys
 import pytest
-
+import GPUtil
 
 class TestCallback:
     @pytest.mark.filterwarnings('ignore::UserWarning')
@@ -38,7 +38,6 @@ class TestCallback:
     def test_aconex_torchDDP_trainer(self):
         args = argparse_default([])
         args.model = 'AConEx'
-        args.num_epochs = 1
         args.scoring_technique = 'KvsAll'
         args.path_dataset_folder = 'KGs/UMLS'
         args.num_epochs = 10
@@ -46,6 +45,7 @@ class TestCallback:
         args.lr = 0.01
         args.embedding_dim = 32
         args.trainer = 'torchDDP'
+        args.num_core = 4 # need to be bigger than 0
         Execute(args).start()
 
 

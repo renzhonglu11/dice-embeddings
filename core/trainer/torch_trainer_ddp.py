@@ -12,8 +12,15 @@ import pandas as pd
 import sys
 from core.static_funcs_training import efficient_zero_grad
 import platform
+import GPUtil
+
 
 # DDP with gradiant accumulation https://gist.github.com/mcarilli/bf013d2d2f4b4dd21ade30c9b52d5e2e
+
+
+BACKEND_GLOO = 'gloo'
+BACKEND_NCCL = 'nccl'
+
 
 def print_peak_memory(prefix, device):
     if device == 0:
@@ -74,7 +81,19 @@ def distributed_training(rank: int, world_size, model, train_dataset_loader, cal
     """
     os.environ['MASTER_ADDR'] = 'localhost'
     os.environ['MASTER_PORT'] = '1234'
-    dist.init_process_group(backend='nccl', rank=rank, world_size=world_size)
+    oom = True
+
+
+    if platform.system().lower() == 'windows':
+        backend = BACKEND_GLOO
+    else:
+        backend = BACKEND_NCCL    
+
+    # for test purpose
+    torch.cuda.set_per_process_memory_fraction(0.01)
+
+
+    dist.init_process_group(backend=backend, rank=rank, world_size=world_size)
     # (1) Create DATA LOADER.
     #train_dataset_loader.sampler=torch.utils.data.distributed.DistributedSampler
     train_dataset_loader = DataLoader(train_dataset_loader.dataset, batch_size=args.batch_size,
@@ -86,7 +105,28 @@ def distributed_training(rank: int, world_size, model, train_dataset_loader, cal
     optimizer = model.configure_optimizers()
     # (3) Create a static DDB Trainer.
     trainer = Trainer(model, train_dataset_loader, optimizer, rank, callbacks, args.num_epochs)
-    trainer.train()
+    # total_size=0
+    # data_batch = next(iter(train_dataset_loader))
+    # for data in data_batch:
+    #     total_size += data.element_size() * data.nelement()
+    # print(f"Total size of data in batch: {total_size} bytes")
+    print(f'{torch.cuda.memory_summary(0)}')
+    # trainer.train()
+    
+    while oom:
+        try:
+            trainer.train()
+            oom = False
+        except RuntimeError:
+            oom = True
+        if oom:
+            args.batch_size = args.batch_size // 2
+            train_dataset_loader = DataLoader(train_dataset_loader.dataset, batch_size=args.batch_size,
+                                      pin_memory=True, shuffle=False,num_workers=args.num_core,
+                                      persistent_workers=True, collate_fn=train_dataset_loader.dataset.collate_fn,
+                                      sampler=torch.utils.data.distributed.DistributedSampler(train_dataset_loader.dataset))
+            trainer = Trainer(model, train_dataset_loader, optimizer, rank, callbacks, args.num_epochs)
+        
     if rank == 0:
         trainer.model.loss_history = trainer.loss_history
         torch.save(trainer.model.module.state_dict(), "model.pt")
@@ -107,14 +147,20 @@ class Trainer:
         self.model = DDP(model, device_ids=[gpu_id])
         self.num_epochs = num_epochs
         print_peak_memory("Max memory allocated after creating DDP:", gpu_id)
-        print('GPU:{self.gpu_id')
+        # print('GPU:{self.gpu_id')
+        print(f'GPU:{torch.cuda.current_device()}')
         print(self.model)
         print(self.optimizer)
         print(f'NumOfDataPoints:{len(self.train_dataset_loader.dataset)} | NumOfEpochs:{self.num_epochs} | LearningRate:{self.model.module.learning_rate} | BatchSize:{self.train_dataset_loader.batch_size} | EpochBatchsize:{len(self.train_dataset_loader)}')
+        # print(f'.........max memory of GPU: {torch.cuda.get_device_properties(0).total_memory}')
+        # print(torch.cuda.get_device_properties('cuda:0')) # 3221094400/(1024*1024) = 3071MB
+            # for test purpose, manually decrease the memory of GPU
 
+        GPUtil.showUtilization()
         self.loss_history = []
 
     def _run_batch(self, source, targets):
+        print(f'demanding memory: {torch.cuda.memory_allocated(0)}')
         # (1) Zero the gradients.
         # self.optimizer.zero_grad()
         efficient_zero_grad(self.model)
@@ -125,7 +171,7 @@ class Trainer:
         self.optimizer.step()
         # @TODO: Tips to decrease mem usage
         #  https://github.com/pytorch/pytorch/issues/13246#issuecomment-905703662
-        #  torch.cuda.empty_cache()
+        torch.cuda.empty_cache()
         return batch_loss
 
     def extract_input_outputs(self, z: list):
@@ -142,6 +188,7 @@ class Trainer:
             raise ValueError('Unexpected batch shape..')
 
     def _run_epoch(self, epoch):
+        # @TODO: can batch size be changed here???
         self.train_dataset_loader.sampler.set_epoch(epoch)
         epoch_loss = 0
         i = 0
@@ -149,6 +196,7 @@ class Trainer:
         for i, z in enumerate(self.train_dataset_loader):
             source, targets = self.extract_input_outputs(z)
             start_time = time.time()
+            
             if construct_mini_batch_time:
                 construct_mini_batch_time = start_time - construct_mini_batch_time
             batch_loss = self._run_batch(source, targets)
@@ -164,9 +212,12 @@ class Trainer:
         return epoch_loss / (i + 1)
 
     def train(self):
+        
+
         for epoch in range(self.num_epochs):
             start_time = time.time()
             epoch_loss = self._run_epoch(epoch)
+            GPUtil.showUtilization()
             if self.gpu_id == 0:
                 print(f"Epoch:{epoch + 1} | Loss:{epoch_loss:.8f} | Runtime:{(time.time() - start_time) / 60:.3f}mins")
                 self.model.module.loss_history.append(epoch_loss)
@@ -300,14 +351,18 @@ class TorchRunTorchDDPTrainer(AbstractTrainer):
         """ Train model        """
         assert len(args) == 1
         model, = args
+       
         # (1) Fit start.
         if int(os.environ["LOCAL_RANK"]) == 0:
             self.on_fit_start(self, model)
         # nodes * gpus
         # world_size = self.attributes.num_nodes * torch.cuda.device_count()
         train_dataset = kwargs['train_dataloaders'].dataset
-
-        torch.distributed.init_process_group(backend="nccl")
+        if platform.system().lower() == 'windows':
+            backend = BACKEND_GLOO
+        else:
+            backend = BACKEND_NCCL
+        torch.distributed.init_process_group(backend=backend)
 
         # (1) Create DATA LOADER.
         train_dataset_loader = DataLoader(train_dataset, batch_size=self.attributes.batch_size,
@@ -315,6 +370,7 @@ class TorchRunTorchDDPTrainer(AbstractTrainer):
                                           collate_fn=train_dataset.collate_fn,
                                           persistent_workers=True,
                                           sampler=torch.utils.data.distributed.DistributedSampler(train_dataset))
+
 
         optimizer = model.configure_optimizers()
         trainer = Trainer(model, train_dataset_loader, optimizer, self.callbacks, snapshot_path="snapshot.pt")
