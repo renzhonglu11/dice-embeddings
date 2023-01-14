@@ -128,8 +128,6 @@ class PreprocessKG:
             raise TypeError(f"{type(kg.train_set)}")
         assert isinstance(self.kg.valid_set, polars.DataFrame) or self.kg.valid_set is None
         assert isinstance(self.kg.test_set, polars.DataFrame) or self.kg.test_set is None
-        if self.kg.min_freq_for_vocab is not None:
-            raise NotImplementedError('With using Polars')
 
         def concat_splits(train, val, test):
             x = [train]
@@ -182,12 +180,22 @@ class PreprocessKG:
                                       polars.col("object").apply(lambda x: self.kg.entity_to_idx[x])])
 
         @timeit
-        def index_datasets():
+        def from_polars_to_numpy():
             """ Map str stored in a polars Dataframe to int"""
+            # https://github.com/pola-rs/polars/issues/5973#issuecomment-1373781420
+            mapper_entity = polars.DataFrame(
+                {"keys": list(self.kg.entity_to_idx.keys()), "values": list(self.kg.entity_to_idx.values())})
+            mapper_relation = polars.DataFrame(
+                {"keys": list(self.kg.relation_to_idx.keys()), "values": list(self.kg.relation_to_idx.values())})
+
+            print(self.kg.train_set[:, "subject"].join(mapper_entity, on="subject", how="left").to_series(1))
+            exit(1)
+
             self.kg.train_set = self.kg.train_set.select(
-                [polars.col("subject").apply(lambda x: self.kg.entity_to_idx[x]),
-                 polars.col("relation").apply(lambda x: self.kg.relation_to_idx[x]),
-                 polars.col("object").apply(lambda x: self.kg.entity_to_idx[x])]).to_numpy()
+                [polars.col("subject").to_frame("keys").join(mapper_entity, on="keys", how="left").to_series(1),
+                 polars.col("relation").to_frame("keys").join(mapper_relation, on="keys", how="left").to_series(1),
+                 polars.col("subject").to_frame("keys").join(mapper_entity, on="keys", how="left").to_series(1)]
+            ).to_numpy()
 
         @timeit
         def from_pandas_to_numpy(df):
@@ -201,7 +209,7 @@ class PreprocessKG:
 
         print(f'Indexing Training Data {self.kg.train_set.shape}...')
         self.kg.train_set = from_pandas_to_numpy(self.kg.train_set)
-        # index_datasets(df=self.kg.train_set)
+        # self.kg.train_set = from_polars_to_numpy()
         # we may try vaex to speed up pandas
         # https://stackoverflow.com/questions/69971992/vaex-apply-does-not-work-when-using-dataframe-columns
 
@@ -259,7 +267,8 @@ class PreprocessKG:
         del ordered_list
 
     def remove_triples_from_train_with_condition(self):
-        if self.kg.min_freq_for_vocab is not None:
+        if None:
+            # self.kg.min_freq_for_vocab is not
             assert isinstance(self.kg.min_freq_for_vocab, int)
             assert self.kg.min_freq_for_vocab > 0
             print(
@@ -302,7 +311,7 @@ class PreprocessKG:
             print('Done !\n')
 
         # (2) Extend KG with triples where entities and relations are randomly sampled.
-        if self.kg.add_noise_rate is not None:
+        if None:
             print(f'[4 / 14] Adding noisy triples...')
             self.kg.train_set = add_noisy_triples(self.kg.train_set, self.kg.add_noise_rate)
             print('Done!\n')

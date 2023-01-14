@@ -5,7 +5,7 @@ from typing import Union
 from core.models.base_model import BaseKGE
 from core.static_funcs import select_model
 from core.callbacks import *
-from core.dataset_classes import construct_dataset
+from core.dataset_classes import construct_dataset, reload_dataset
 from .torch_trainer import TorchTrainer
 from .torch_trainer_ddp import TorchDDPTrainer
 from ..static_funcs import timeit
@@ -48,11 +48,24 @@ def get_callbacks(args):
                  AccumulateEpochLossCallback(path=args.full_storage_path)
                  ]
     for i in args.callbacks:
-        if 'PPE' in i:
+        if 'FPPE' in i:
+            if i == 'FPPE':
+                callbacks.append(
+                    FPPE(num_epochs=args.num_epochs, path=args.full_storage_path, last_percent_to_consider=None))
+            elif 'FPPE' == i[:4] and len(i) > 3:
+                name, param = i[:4], i[4:]
+                assert name == 'FPPE'
+                assert int(param)
+                callbacks.append(FPPE(num_epochs=args.num_epochs,
+                                      path=args.full_storage_path,
+                                      last_percent_to_consider=int(param)))
+            else:
+                raise KeyError(f'Unexpected input for callbacks ***\t{i}\t***')
+        elif 'PPE' in i:
             if "PPE" == i:
                 callbacks.append(
                     PPE(num_epochs=args.num_epochs, path=args.full_storage_path, last_percent_to_consider=None))
-            elif len(i) > 3:
+            elif 'PPE' == i[:3] and len(i) > 3:
                 name, param = i[:3], i[3:]
                 assert name == 'PPE'
                 assert int(param)
@@ -61,6 +74,9 @@ def get_callbacks(args):
                                      last_percent_to_consider=int(param)))
             else:
                 raise KeyError(f'Unexpected input for callbacks ***\t{i}\t***')
+        else:
+            raise KeyError(f'Unexpected input for callbacks ***\t{i}\t***')
+
     return callbacks
 
 
@@ -120,8 +136,11 @@ class DICE_Trainer:
         model, form_of_labelling = self.initialize_or_load_model()
         assert form_of_labelling in ['EntityPrediction', 'RelationPrediction', 'Pyke']
         assert self.args.scoring_technique in ['KvsSample', '1vsAll', 'KvsAll', 'NegSample']
-        # Load the training data
-        train_loader = torch.load(self.storage_path + '/TrainDataloader.pth')
+        train_loader = self.initialize_dataloader(
+            reload_dataset(path=self.storage_path, form_of_labelling=form_of_labelling,
+                           scoring_technique=self.args.scoring_technique,
+                           neg_ratio=self.args.neg_ratio,
+                           label_smoothing_rate=self.args.label_smoothing_rate))
         self.trainer.fit(model, train_dataloaders=train_loader)
         return model, form_of_labelling
 
@@ -162,6 +181,10 @@ class DICE_Trainer:
         if self.args.eval_model is None:
             del dataset.train_set
             gc.collect()
+
+        # pickle.PicklingError: memo id too large for LONG_BINPUT
+        # torch.save(train_loader, self.storage_path + '/TrainDataloader.pth')
+        # @TODO: SaveDataset
         return train_dataset
 
     def start(self, dataset) -> Tuple[BaseKGE, str]:
@@ -176,7 +199,7 @@ class DICE_Trainer:
             model, form_of_labelling = self.initialize_or_load_model()
             assert self.args.scoring_technique in ['KvsSample', '1vsAll', 'KvsAll', 'NegSample']
             train_loader = self.initialize_dataloader(self.initialize_dataset(dataset, form_of_labelling))
-            torch.save(train_loader, self.storage_path + '/TrainDataloader.pth')
+            
 
             if(isinstance(model,LitModule)):
                 self.trainer.fit(model)
