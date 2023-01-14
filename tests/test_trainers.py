@@ -41,11 +41,12 @@ class TestCallback:
         args.scoring_technique = 'KvsAll'
         args.path_dataset_folder = 'KGs/UMLS'
         args.num_epochs = 10
-        args.batch_size = 1024
+        args.batch_size = 32
         args.lr = 0.01
         args.embedding_dim = 32
         args.trainer = 'torchDDP'
         args.num_core = 4 # need to be bigger than 0
+        args.eval_model = 'train_val_test'
         Execute(args).start()
 
 

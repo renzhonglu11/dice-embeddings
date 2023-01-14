@@ -52,7 +52,7 @@ def argparse_default(description=None):
     # Flags for computation
     parser.add_argument('--num_folds_for_cv', type=int, default=0, help='Number of folds in k-fold cross validation.'
                                                                         'If >2 ,no evaluation scenario is applied implies no evaluation.')
-    parser.add_argument("--eval_model", type=str, default=None,#"train_val_test",
+    parser.add_argument("--train_val_test", type=str, default=None,#"train_val_test",
                         help='train, val, test, constraint, combine them anyway you want, e.g. '
                              'train_val,train_val_test, val_test, val_test_constraint ')
     # Additional training params

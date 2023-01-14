@@ -2,8 +2,6 @@ from main import argparse_default
 from core.executer import Execute
 import sys
 import pytest
-from pykeen.datasets import Nations
-from pykeen.datasets.inductive.ilp_teru import InductiveFB15k237
 
 
 def template(model_name):
@@ -21,7 +19,6 @@ def template(model_name):
     args.sample_triples_ratio = None
     args.read_only_few = None
     args.sample_triples_ratio = None
-    # args.trainer = "PL"
     args.trainer = "PL"
     args.neg_ratio = 1
     args.pykeen_model_kwargs = dict(
@@ -31,6 +28,7 @@ def template(model_name):
     args.use_SLCWALitModule = False
     args.num_core = 2
     args.save_embeddings_as_csv = True
+    args.eval_model = 'train_val_test'
     return args
 
 

@@ -144,6 +144,7 @@ class TestDefaultParams:
         args.num_folds_for_cv = None
         args.trainer = 'torchCPUTrainer'
         args.neg_ratio = 1
+        args.eval_model = 'train_val_test'
         Execute(args).start()
 
 

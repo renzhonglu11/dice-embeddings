@@ -505,13 +505,14 @@ def save_embeddings(embeddings: np.ndarray, indexes, path: str) -> None:
     :return:
     """
     try:
-        _indexes = indexes
+        _indexes = list(indexes)
         if len(embeddings.shape) > 2:
             embeddings = embeddings.reshape(embeddings.shape[0], -1)
 
         if embeddings.shape[0] > len(indexes):
-            num_of_times_extends = embeddings.shape[0] // len(indexes)
-            for _ in range(num_of_times_extends - 1):
+            # models from pykeen may have n*len(indexs) rows of relations and entities(n=1,2,..,Z)  
+            num_of_extends = embeddings.shape[0] // len(indexes)
+            for _ in range(num_of_extends - 1):
                 _indexes.extend(indexes)
 
         df = pd.DataFrame(embeddings, index=_indexes)
