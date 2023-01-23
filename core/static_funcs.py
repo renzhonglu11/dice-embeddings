@@ -412,7 +412,11 @@ def get_pykeen_model(model_name, args):
             model_name=actual_name,
             model_kwargs=args["pykeen_model_kwargs"],
             batch_size=args["batch_size"],
-            args = args
+            args = args,
+            negative_sampler = 'basic',
+            negative_sampler_kwargs = dict(
+                filtered=True,
+            )
         )
     else:
         model = MyLCWALitModule(
@@ -492,6 +496,8 @@ def intialize_model(args: dict) -> Tuple[pl.LightningModule, AnyStr]:
     else:
         raise ValueError
     return model, form_of_labelling
+
+
 
 
 def load_json(p: str) -> dict:

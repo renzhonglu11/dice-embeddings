@@ -2,13 +2,27 @@ from core.executer import Execute
 import argparse
 import pytorch_lightning as pl
 
+
+import argparse
+
+class ParseDict(argparse.Action):
+    def __call__(self, parser, namespace, values, option_string=None):
+        setattr(namespace, self.dest, dict()) # set each name of the attribute to hold the created object(s) as dictionary
+        for value in values:
+            key, value = value.split('=')
+            if value.isdigit():
+                getattr(namespace, self.dest)[key] = int(value)
+                continue
+            getattr(namespace, self.dest)[key] = value
+
+
 def argparse_default(description=None):
     """ Extends pytorch_lightning Trainer's arguments with ours """
     parser = pl.Trainer.add_argparse_args(argparse.ArgumentParser(add_help=False))
     # Default Trainer param https://pytorch-lightning.readthedocs.io/en/stable/common/trainer.html#methods
     parser.add_argument("--path_dataset_folder", type=str, default='KGs/UMLS',
                         help="The path of a folder containing input data")
-    parser.add_argument("--save_embeddings_as_csv", type=bool, default=False,
+    parser.add_argument("--save_embeddings_as_csv", action="store_true", default=False,
                         help='A flag for saving embeddings in csv file.')
     parser.add_argument("--storage_path", type=str, default='Experiments',
                         help="Embeddings, model, and any other related data will be stored therein.")
@@ -54,6 +68,11 @@ def argparse_default(description=None):
     parser.add_argument("--seed_for_computation", type=int, default=0, help='Seed for all, see pl seed_everything().')
     parser.add_argument("--sample_triples_ratio", type=float, default=None, help='Sample input data.')
     parser.add_argument("--read_only_few", type=int, default=None, help='READ only first N triples. If 0, read all.')
+    parser.add_argument("--pykeen_model_kwargs", nargs='*',action=ParseDict, help='addtional paramters pass to pykeen_model')
+    parser.add_argument("--use_SLCWALitModule",action="store_true",help='whether to use SLCWALitModule in pykeen or not')
+    # parser.add_argument("--accelerator",type=str,default='gpu')
+    # parser.add_argument("--devices", type=int,default=1)
+    
     if description is None:
         return parser.parse_args()
     return parser.parse_args(description)

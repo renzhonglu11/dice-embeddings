@@ -18,6 +18,7 @@ from sklearn.model_selection import KFold
 import copy
 from typing import List, Tuple
 from pykeen.contrib.lightning import LitModule
+import platform
 
 def initialize_trainer(args, callbacks):
     if args.trainer == 'torchCPUTrainer':
@@ -33,19 +34,25 @@ def initialize_trainer(args, callbacks):
     elif args.trainer == 'PL':
         print('Initializing Pytorch-lightning Trainer', end='\t')
         # Pytest with PL problem https://github.com/pytest-dev/pytest/discussions/7995
+        if platform.system().lower() == 'windows':
+            backend = 'gloo'
+        else:
+            backend = 'nccl'
         return pl.Trainer.from_argparse_args(args,
-                                             strategy=DDPStrategy(find_unused_parameters=False))
+                                             strategy=DDPStrategy(find_unused_parameters=False,process_group_backend=backend))
     else:
         print('Initialize TorchTrainer CPU Trainer', end='\t')
         return TorchTrainer(args, callbacks=callbacks)
 
 
 def get_callbacks(args):
-    callbacks = [PrintCallback(),
+    from ray.tune.integration.pytorch_lightning import TuneReportCallback
+    callbacks = [
+                 PrintCallback(),
                  KGESaveCallback(every_x_epoch=args.save_model_at_every_epoch,
                                  max_epochs=args.max_epochs,
                                  path=args.full_storage_path),
-                 AccumulateEpochLossCallback(path=args.full_storage_path)
+                 AccumulateEpochLossCallback(path=args.full_storage_path),
                  ]
     for i in args.callbacks:
         if 'FPPE' in i:
@@ -189,6 +196,7 @@ class DICE_Trainer:
 
     def start(self, dataset) -> Tuple[BaseKGE, str]:
         """ Train selected model via the selected training strategy """
+        from ray.tune.integration.pytorch_lightning import TuneReportCallback
         print('------------------- Train -------------------')
         # (1) Perform K-fold CV
         if self.args.num_folds_for_cv >= 2:
@@ -199,15 +207,84 @@ class DICE_Trainer:
             model, form_of_labelling = self.initialize_or_load_model()
             assert self.args.scoring_technique in ['KvsSample', '1vsAll', 'KvsAll', 'NegSample']
             train_loader = self.initialize_dataloader(self.initialize_dataset(dataset, form_of_labelling))
-            
 
-            if(isinstance(model,LitModule)):
-                self.trainer.fit(model)
-                return model, form_of_labelling
-
-            self.trainer.fit(model, train_dataloaders=train_loader)
+        if(isinstance(model,LitModule)):
+            self.trainer.fit(model)
             return model, form_of_labelling
 
+        # hyparameter tune by ray
+        # self.tune_mnist_asha(data_loader = train_loader)
+
+        self.trainer.fit(model, train_dataloaders=train_loader)
+        
+        return model, form_of_labelling
+
+    def train_mnist_tune(self,config, num_epochs=10, num_gpus=0, data_loader = None):
+        from pytorch_lightning.loggers import TensorBoardLogger
+        import math
+        
+        from ray.air import session
+        
+        from ray.tune.integration.pytorch_lightning import TuneReportCallback, \
+    TuneReportCheckpointCallback
+        
+        model,_ = self.initialize_or_load_model()
+        self.trainer.callbacks.append(TuneReportCallback(
+                    {
+                        "loss": "avg_loss_per_epoch",
+                        "mean_accuracy": "avg_val_acc_per_epoch"
+                    },
+                    on="validation_end"))
+        
+        self.trainer.fit(model,train_dataloaders=data_loader,val_dataloaders=data_loader)
+
+    def tune_mnist_asha(self,num_samples=3, num_epochs=5, gpus_per_trial=0, data_loader = None):
+        from ray import air, tune
+        from ray.tune.schedulers import ASHAScheduler, PopulationBasedTraining
+        from ray.tune import CLIReporter
+        config = vars(self.args)
+        config['lr'] = tune.loguniform(1e-4, 1e-1)
+        config['batch_size'] = tune.choice([32, 64, 128])
+
+
+        scheduler = ASHAScheduler(
+            max_t=num_epochs,
+            grace_period=1,
+            reduction_factor=2)
+
+        reporter = CLIReporter(
+            parameter_columns=[ "lr", "batch_size"],
+            metric_columns=["loss", "mean_accuracy", "training_iteration"])
+
+        train_fn_with_parameters = tune.with_parameters(self.train_mnist_tune,
+                                                        num_epochs=num_epochs,
+                                                        num_gpus=gpus_per_trial,
+                                                        data_loader = data_loader
+                                                        )
+        resources_per_trial = {"cpu": 1, "gpu": gpus_per_trial}
+        
+        tuner = tune.Tuner(
+            tune.with_resources(
+                train_fn_with_parameters,
+                resources=resources_per_trial
+            ),
+            tune_config=tune.TuneConfig(
+                metric="loss",
+                mode="min",
+                scheduler=scheduler,
+                num_samples=num_samples,
+            ),
+            run_config=air.RunConfig(
+                name="tune_mnist_asha",
+                progress_reporter=reporter,
+            ),
+            param_space=config,
+        )
+        results = tuner.fit()
+
+        print("Best hyperparameters found were: ", results.get_best_result().config)
+
+    
     def k_fold_cross_validation(self, dataset) -> Tuple[BaseKGE, str]:
         """
         Perform K-fold Cross-Validation

@@ -23,12 +23,15 @@ def template(model_name):
     args.neg_ratio = 1
     args.pykeen_model_kwargs = dict(
         embedding_dim=args.embedding_dim, loss="bcewithlogits",
+        
     )
     args.interaction_kwargs = None
-    args.use_SLCWALitModule = False
-    args.num_core = 2
+    args.use_SLCWALitModule = True
+    args.num_core = 1
     args.save_embeddings_as_csv = True
     args.eval_model = 'train_val_test'
+    # args.accelerator = 'gpu'
+    # args.devices = 1
     return args
 
 

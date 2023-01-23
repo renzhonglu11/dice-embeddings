@@ -55,7 +55,9 @@ class Pykeen_Module:
     def forward_triples(self, x: torch.Tensor) -> torch.FloatTensor:
         # the tensors here is inference tensors and can't be modified in-place outside InferenceMode.
         # https://twitter.com/PyTorch/status/1437838242418671620?s=20&t=8pEheJu4kRaLyJHBBLUvZA (solution)
-        return predict.predict_triples(model=self.model, triples=x,).scores.clone()
+        # torch_max_mem will be used by default. If the tensors are not moved to cuda, a warning will occur
+        # https://pykeen.readthedocs.io/en/latest/reference/predict.html#predict-triples-df (migration guide)
+        return predict.predict_triples(model=self.model, triples=x.to("cuda"),).scores.clone()
 
 
     def mem_of_model(self) -> Dict:

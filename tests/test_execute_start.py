@@ -129,11 +129,11 @@ class TestDefaultParams:
     def test_distmult(self):
         args = argparse_default([])
         args.model = 'DistMult'
-        args.num_epochs = 1
+        # args.num_epochs = 1
         args.scoring_technique = 'NegSample'
         args.path_dataset_folder = 'KGs/Nations'
-        args.num_epochs = 10
-        args.batch_size = 1024
+        args.num_epochs = 5
+        args.batch_size = 128
         args.lr = 0.01
         args.embedding_dim = 32
         args.input_dropout_rate = 0.0
@@ -142,9 +142,11 @@ class TestDefaultParams:
         args.sample_triples_ratio = None
         args.read_only_few = None
         args.num_folds_for_cv = None
-        args.trainer = 'torchCPUTrainer'
+        # args.trainer = 'torchCPUTrainer'
+        args.trainer = 'PL'
         args.neg_ratio = 1
         args.eval_model = 'train_val_test'
+        args.num_core = 4
         Execute(args).start()
 
 
