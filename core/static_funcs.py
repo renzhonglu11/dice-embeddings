@@ -248,9 +248,10 @@ def store(trainer,
                         path=full_storage_path + '/' + trained_model.name + '_entity_embeddings.csv')
         del entity_to_idx, entity_str, entity_emb
 
-        if isinstance(relation_ebm, list) and len(relation_ebm) == 0:
-            return
         if relation_ebm is None:
+            return
+
+        if isinstance(relation_ebm, list) and len(relation_ebm) == 0:
             return
 
         relation_to_idx = pickle.load(open(full_storage_path + '/relation_to_idx.p', 'rb'))
@@ -271,10 +272,7 @@ def store(trainer,
         else:
             save_embeddings(relation_ebm.numpy(), indexes=relations_str,
                             path=full_storage_path + '/' + trained_model.name + '_relation_embeddings.csv')
-  
-
-        del relation_ebm,relations_str,relation_to_idx
-
+            del relation_ebm, relations_str, relation_to_idx
 
 
 def add_noisy_triples(train_set: pd.DataFrame, add_noise_rate: float) -> pd.DataFrame:
@@ -815,3 +813,11 @@ def continual_training_setup_executor(executor):
         with open(executor.args.full_storage_path + '/configuration.json', 'w') as file_descriptor:
             temp = vars(executor.args)
             json.dump(temp, file_descriptor, indent=3)
+
+
+def exponential_function(x: np.ndarray, lam: float, ascending_order=True) -> torch.FloatTensor:
+    # A sequence in exponentially decreasing order
+    result = np.exp(-lam * x) / np.sum(np.exp(-lam * x))
+    assert 0.999 < sum(result) < 1.0001
+    result = np.flip(result) if ascending_order else result
+    return torch.tensor(result.tolist())

@@ -1,9 +1,10 @@
 import datetime
+import math
 import time
 import numpy as np
 import torch
-from .static_funcs import save_checkpoint_model
-from .abstracts import AbstractCallback
+from .static_funcs import save_checkpoint_model, exponential_function
+from .abstracts import AbstractCallback,AbstractPPECallback
 from typing import Optional
 import os
 import pandas as pd
@@ -146,97 +147,46 @@ def compute_convergence(seq, i):
     return estimate_q(seq[-i:] / (np.arange(i) + 1))
 
 
-class PPE:
-    """ A callback for Polyak Parameter Ensemble Technique
 
+class PPE(AbstractPPECallback):
+    """ A callback for Polyak Parameter Ensemble Technique
         Maintains a running parameter average for all parameters requiring gradient signals
     """
 
     def __init__(self, num_epochs, path, last_percent_to_consider=None):
-        self.num_epochs = num_epochs
-        self.path = path
-        self.epoch_counter = 0
-        self.sample_counter = 0
-        if last_percent_to_consider is None:
-            self.epoch_to_start = 1
-        else:
-            # e.g. Average only last 10 percent
-            self.epoch_to_start = self.num_epochs - int(self.num_epochs / last_percent_to_consider)
-
-    def on_fit_start(self, trainer, model):
-        torch.save(model.state_dict(), f=f"{self.path}/trainer_checkpoint_main.pt")
-
-    def on_train_epoch_end(self, trainer, model):
-        self.epoch_counter += 1
-        if self.epoch_to_start < self.epoch_counter:
-            # Load averaged model
-            device_of_training = model.device
-            x = torch.load(f"{self.path}/trainer_checkpoint_main.pt", torch.device(model.device))
-
-            with torch.no_grad():
-                # Update the model
-                for k, v in model.state_dict().items():
-                    x[k] = (x[k] * self.sample_counter + v) / (self.sample_counter + 1)
-            # Store the model
-            torch.save(x, f=f"{self.path}/trainer_checkpoint_main.pt")
-            self.sample_counter += 1
-
-    def on_fit_end(self, trainer, model):
-        """ END:Called """
-        model.load_state_dict(torch.load(f"{self.path}/trainer_checkpoint_main.pt", torch.device('cpu')))
-
-    def on_train_batch_end(self, *args, **kwargs):
-        return
+        super().__init__(num_epochs, path, last_percent_to_consider)
+        self.alphas = np.ones(self.num_ensemble_coefficient) / self.num_ensemble_coefficient
+        print(f"Equal Ensemble Coefficients:", self.alphas)
 
 
-class FPPE:
-    """ A callback for Forgetful Polyak Parameter Ensemble Technique
+class FPPE(AbstractPPECallback):
+    """
+    import matplotlib.pyplot as plt
+    import numpy as np
+    def exponential_function(x: np.ndarray, lam: float, ascending_order=True) -> torch.FloatTensor:
+        # A sequence in exponentially decreasing order
+        result = np.exp(-lam * x) / np.sum(np.exp(-lam * x))
+        assert 0.999 < sum(result) < 1.0001
+        result = np.flip(result) if ascending_order else result
+        return torch.tensor(result.tolist())
 
-        Maintains a running weighted average of parameters in each epoch interval.
-        As i -> N the impact of the parameters at the early stage of the training decreasing.
+    N = 100
+    equal_weights = np.ones(N) / N
+    plt.plot(equal_weights, 'r', label="Equal")
+    plt.plot(exponential_function(np.arange(N), lam=0.1,), 'c-', label="Exp. forgetful with 0.1")
+    plt.plot(exponential_function(np.arange(N), lam=0.05), 'g-', label="Exp. forgetful with 0.05")
+    plt.plot(exponential_function(np.arange(N), lam=0.025), 'b-', label="Exp. forgetful with 0.025")
+    plt.plot(exponential_function(np.arange(N), lam=0.01), 'k-', label="Exp. forgetful with 0.01")
+    plt.title('Ensemble coefficients')
+    plt.xlabel('Epochs')
+    plt.ylabel('Coefficients')
+    plt.legend()
+    plt.savefig('ensemble_coefficients.pdf')
+    plt.show()
     """
 
-    def __init__(self, num_epochs, path, last_percent_to_consider):
-        self.num_epochs = num_epochs
-        self.path = path
-        self.epoch_counter = 0
-        self.sample_counter = 0
-        self.epoch_to_start = 0
-
-        if last_percent_to_consider is None:
-            # Initialize Alphas
-            self.alphas = np.cumsum(np.ones(self.num_epochs) * (1 / self.num_epochs))
-        else:
-            # e.g. Average only last 10 percent
-            self.epoch_to_start = self.num_epochs - int(self.num_epochs / last_percent_to_consider)
-            size_of_alphas = self.num_epochs - self.epoch_to_start - 1
-            self.alphas = np.cumsum(np.ones(size_of_alphas) * (1 / size_of_alphas))
-        self.alphas /= sum(self.alphas)
-        assert 1.00001 >= sum(self.alphas) >= 0.999
-        self.alphas = torch.from_numpy(self.alphas)
-        print(self.alphas)
-
-    def on_fit_start(self, trainer, model):
-        torch.save(model.state_dict(), f=f"{self.path}/trainer_checkpoint_main.pt")
-
-    def on_train_epoch_end(self, trainer, model):
-
-        if self.epoch_to_start < self.epoch_counter:
-            # Load averaged model
-            x = torch.load(f"{self.path}/trainer_checkpoint_main.pt", torch.device(model.device))
-
-            with torch.no_grad():
-                # Update the model
-                for k, v in model.state_dict().items():
-                    x[k] = x[k] * self.alphas[self.sample_counter] + v
-            # Store the model
-            torch.save(x, f=f"{self.path}/trainer_checkpoint_main.pt")
-            self.sample_counter += 1
-        self.epoch_counter += 1
-
-    def on_fit_end(self, trainer, model):
-        """ END:Called """
-        model.load_state_dict(torch.load(f"{self.path}/trainer_checkpoint_main.pt", torch.device('cpu')))
-
-    def on_train_batch_end(self, *args, **kwargs):
-        return
+    def __init__(self, num_epochs, path, last_percent_to_consider=None):
+        super().__init__(num_epochs, path, last_percent_to_consider)
+        lamb = 0.1
+        self.alphas = exponential_function(np.arange(self.num_ensemble_coefficient), lam=lamb, ascending_order=True)
+        print(f"Forgetful Ensemble Coefficients with lambda {lamb}:", self.alphas)
