@@ -69,6 +69,11 @@ class TorchDDPTrainer(AbstractTrainer):
         batch_size = self.attributes.batch_size  # batch size to increase
         initial_num_epochs = self.attributes.num_epochs
         num_of_tries = 1
+        if "train_dataloaders" not in kwargs:
+            # get the length of dataset from pykeen
+            kwargs["train_dataloaders"] = model.train_dataloaders
+            # size_of_train_data = len(model.dataset.training.triples)
+        
         size_of_train_data = len(kwargs["train_dataloaders"].dataset)
 
         while oom:
@@ -155,6 +160,20 @@ def distributed_training(
     # torch.cuda.set_per_process_memory_fraction(0.01)
 
     dist.init_process_group(backend=backend, rank=rank, world_size=world_size)
+
+    # train_dataset_loader = DataLoader(
+    #         dataset=train_dataset_loader.dataset,
+    #         num_workers=attrubutes.num_core,
+    #         pin_memory=True,
+    #         # disable automatic batching
+    #         batch_size=None,
+    #         batch_sampler=None,
+    #         shuffle=False,
+    #         sampler=None,
+    #     )
+
+
+
     # (1) Create DATA LOADER.
     # train_dataset_loader.sampler=torch.utils.data.distributed.DistributedSampler
     train_dataset_loader = DataLoader(
@@ -260,7 +279,7 @@ class Trainer:
             raise ValueError("Unexpected batch shape..")
 
     def _run_epoch(self, epoch):
-        # @TODO: can batch size be changed here???
+        
         self.train_dataset_loader.sampler.set_epoch(epoch)
         epoch_loss = 0
         i = 0

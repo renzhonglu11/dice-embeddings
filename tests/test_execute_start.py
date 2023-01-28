@@ -63,7 +63,7 @@ class TestDefaultParams:
         args.read_only_few = None
         args.sample_triples_ratio = None
         args.trainer = "PL"
-       
+        args.eval_model = 'train_val_test'
         Execute(args).start()
 
     @pytest.mark.filterwarnings('ignore::UserWarning')
@@ -131,9 +131,10 @@ class TestDefaultParams:
         args.model = 'DistMult'
         # args.num_epochs = 1
         args.scoring_technique = 'NegSample'
-        args.path_dataset_folder = 'KGs/Nations'
-        args.num_epochs = 5
-        args.batch_size = 128
+        args.path_dataset_folder = 'KGs/UMLS'
+        args.num_epochs = 10
+        args.batch_size = 1024
+        args.embedding_dim = 64
         args.lr = 0.01
         args.embedding_dim = 32
         args.input_dropout_rate = 0.0
@@ -146,7 +147,8 @@ class TestDefaultParams:
         args.trainer = 'PL'
         args.neg_ratio = 1
         args.eval_model = 'train_val_test'
-        args.num_core = 4
+        args.num_core = 1
+        args.save_embeddings_as_csv = True
         Execute(args).start()
 
 

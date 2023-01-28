@@ -40,7 +40,7 @@ class TestCallback:
         args.model = 'AConEx'
         args.scoring_technique = 'KvsAll'
         args.path_dataset_folder = 'KGs/UMLS'
-        args.num_epochs = 10
+        args.num_epochs = 20
         args.batch_size = 32
         args.lr = 0.01
         args.embedding_dim = 32

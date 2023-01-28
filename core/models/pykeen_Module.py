@@ -6,9 +6,9 @@ from typing import Dict, Tuple
 
 
 class Pykeen_Module:
-    def __init__(self, model_name) -> None:
+    def __init__(self, model_name,optimizer) -> None:
         self.name = model_name
-        
+        self.selected_optimizer = optimizer
 
     def get_embeddings(self) -> Tuple[np.ndarray, np.ndarray]:
         relation_embedd = []
@@ -26,8 +26,8 @@ class Pykeen_Module:
             for embedd_item in self.model.relation_representations:
                 relation_embedd.append(embedd_item().data.detach())
 
-        if len(relation_embedd) == 1:
-            relation_embedd = relation_embedd[0]
+        # if len(relation_embedd) == 1:
+        #     relation_embedd = relation_embedd[0]
 
         if hasattr(self.model,"base") and hasattr(self.model.base,"entity_representations") and len(self.model.base.entity_representations)!=0:
             for embedd_item in self.model.base.entity_representations:
@@ -43,8 +43,8 @@ class Pykeen_Module:
 
 
      
-        if len(entity_embedd) == 1:
-            entity_embedd = entity_embedd[0]
+        # if len(entity_embedd) == 1:
+        #     entity_embedd = entity_embedd[0]
 
         return (
             entity_embedd,
@@ -52,12 +52,20 @@ class Pykeen_Module:
         )
 
 
-    def forward_triples(self, x: torch.Tensor) -> torch.FloatTensor:
+    def forward_triples(self, x: torch.Tensor,h_prediction=False,t_prediction=False) -> torch.FloatTensor:
         # the tensors here is inference tensors and can't be modified in-place outside InferenceMode.
         # https://twitter.com/PyTorch/status/1437838242418671620?s=20&t=8pEheJu4kRaLyJHBBLUvZA (solution)
         # torch_max_mem will be used by default. If the tensors are not moved to cuda, a warning will occur
         # https://pykeen.readthedocs.io/en/latest/reference/predict.html#predict-triples-df (migration guide)
-        return predict.predict_triples(model=self.model, triples=x.to("cuda"),).scores.clone()
+        if t_prediction:
+            # torch.tensor(predictions_tails.df.score)
+            predictions_tails = predict.predict_target(model=self.model,head = x[0,0].item(),relation = x[0,1].item(),targets=x[:,2])
+            return torch.tensor(predictions_tails.df.score)
+        if h_prediction:
+            predictions_heads = predict.predict_target(model=self.model, relation = x[0,1].item(),tail=x[0,2].item(),targets=x[:,0])
+            return torch.tensor(predictions_heads.df.score)
+        
+        # return predict.predict_triples(model=self.model, triples=x.to("cuda"),).scores.clone()
 
 
     def mem_of_model(self) -> Dict:

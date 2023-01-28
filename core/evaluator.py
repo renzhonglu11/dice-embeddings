@@ -3,7 +3,7 @@ import numpy as np
 import json
 import sys
 from .static_funcs import timeit, pickle
-
+import pykeen
 
 class Evaluator:
     """
@@ -60,6 +60,7 @@ class Evaluator:
             except RuntimeError:
                 print('Domain constraint exception occurred')
 
+
         self.num_entities = dataset.num_entities
         self.num_relations = dataset.num_relations
 
@@ -73,6 +74,15 @@ class Evaluator:
         if self.args.eval_model is None:
             return
         print("** EVAL **")
+        train_dataset = dataset.train_set
+        valid_set = dataset.valid_set
+        test_set = dataset.test_set
+        if isinstance(trained_model,pykeen.contrib.lightning.LitModule):
+            #@TODO: this if can be deleted if we use the dataset in DICE framework (need to discuss)
+            # entities occur in val and test dataset but not training dataset will be filtered by pykeen
+            train_dataset = trained_model.dataset.training.mapped_triples
+            valid_set = trained_model.dataset.validation.mapped_triples
+            test_set = trained_model.dataset.testing.mapped_triples
         self.vocab_preparation(dataset)
         print('Evaluation Starts.')
         if self.args.num_folds_for_cv > 1:
@@ -83,14 +93,14 @@ class Evaluator:
             self.args.eval_model = 'train_val_test'
 
         if self.args.scoring_technique == 'NegSample':
-            self.eval_rank_of_head_and_tail_entity(train_set=dataset.train_set,
-                                                   valid_set=dataset.valid_set,
-                                                   test_set=dataset.test_set,
+            self.eval_rank_of_head_and_tail_entity(train_set=train_dataset,
+                                                   valid_set=valid_set,
+                                                   test_set=test_set,
                                                    trained_model=trained_model)
         elif self.args.scoring_technique in ['KvsAll', 'KvsSample', '1vsAll', 'PvsAll', 'CCvsAll']:
-            self.eval_with_vs_all(train_set=dataset.train_set,
-                                  valid_set=dataset.valid_set,
-                                  test_set=dataset.test_set,
+            self.eval_with_vs_all(train_set=train_dataset,
+                                  valid_set=valid_set,
+                                  test_set=test_set,
                                   trained_model=trained_model,
                                   form_of_labelling=form_of_labelling)
         else:
@@ -136,7 +146,10 @@ class Evaluator:
 
     def eval_rank_of_head_and_tail_entity(self, *, train_set, valid_set=None, test_set=None, trained_model):
         # 4. Test model on the training dataset if it is needed.
+        # trained_model.
+        
         if 'train' in self.args.eval_model:
+
             res = self.evaluate_lp(trained_model, train_set,
                                    f'Evaluate {trained_model.name} on Train set')
             self.report['Train'] = res
@@ -275,10 +288,17 @@ class Evaluator:
         """
         model.eval()
         print(info)
+        if isinstance(model,pykeen.contrib.lightning.LitModule):
+            # using entities from pykeen's dataset
+            self.num_entities = model.dataset.num_entities
+
+        
         print(f'Num of triples {len(triple_idx)}')
         print('** Evaluation without batching')
         hits = dict()
         reciprocal_ranks = []
+          
+
         # Iterate over test triples
         all_entities = torch.arange(0, self.num_entities).long()
         all_entities = all_entities.reshape(len(all_entities), )
@@ -293,14 +313,21 @@ class Evaluator:
                              torch.tensor(p).repeat(self.num_entities, ),
                              all_entities
                              ), dim=1)
+            # @TODO: need to take a deep dive into forwar_triples method
+            if isinstance(model,pykeen.contrib.lightning.LitModule):
+                predictions_tails = model.forward_triples(x,h_prediction=False,t_prediction=True)
+            else:
+                predictions_tails = model.forward_triples(x)
             
-            predictions_tails = model.forward_triples(x)
             x = torch.stack((all_entities,
                              torch.tensor(p).repeat(self.num_entities, ),
                              torch.tensor(o).repeat(self.num_entities)
                              ), dim=1)
-            
-            predictions_heads = model.forward_triples(x)
+            if isinstance(model,pykeen.contrib.lightning.LitModule):
+                predictions_heads = model.forward_triples(x,h_prediction=True,t_prediction=False)
+            else:
+                predictions_heads = model.forward_triples(x)
+           
             del x
 
             # 3. Computed filtered ranks for missing tail entities.

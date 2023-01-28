@@ -8,7 +8,7 @@ def template(model_name):
     args = argparse_default([])
     args.model = model_name
     args.scoring_technique = "NegSample"  # default value of args.eval is 'val_test'
-    args.path_dataset_folder = "KGs/Nations"
+    args.path_dataset_folder = "KGs/UMLS"
     args.num_epochs = 10
     args.batch_size = 1024
     args.lr = 0.01
@@ -19,19 +19,21 @@ def template(model_name):
     args.sample_triples_ratio = None
     args.read_only_few = None
     args.sample_triples_ratio = None
+    # args.trainer = "torchDDP"
     args.trainer = "PL"
     args.neg_ratio = 1
     args.pykeen_model_kwargs = dict(
-        embedding_dim=args.embedding_dim, loss="bcewithlogits",
+        embedding_dim=args.embedding_dim, loss="BCEWithLogitsLoss"
         
     )
     args.interaction_kwargs = None
-    args.use_SLCWALitModule = True
+    args.use_SLCWALitModule = False
     args.num_core = 1
     args.save_embeddings_as_csv = True
     args.eval_model = 'train_val_test'
-    # args.accelerator = 'gpu'
-    # args.devices = 1
+    args.optim = 'Adam'
+    args.accelerator = 'gpu'
+    args.devices = 1
     return args
 
 

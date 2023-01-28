@@ -54,6 +54,9 @@ class Execute:
         """ Read & Preprocess & Index & Serialize Input Data """
         # (1) Read & Preprocess & Index & Serialize Input Data.
         self.dataset = read_or_load_kg(self.args, cls=KG)
+
+        
+
         # (3) Sanity checking.
         self.args, self.dataset = config_kge_sanity_checking(self.args, self.dataset)
         self.args.num_entities = self.dataset.num_entities
@@ -62,6 +65,8 @@ class Execute:
         self.report['num_entities'] = self.dataset.num_entities
         self.report['num_relations'] = self.dataset.num_relations
 
+
+    
     def load_indexed_data(self) -> None:
         """ Load Indexed Data"""
         self.dataset = read_or_load_kg(self.args, cls=KG)
@@ -138,6 +143,14 @@ class Execute:
         if self.args.eval_model is None:
             return self.report
         else:
+            # dataset = None
+            # if isinstance(self.trained_model,pykeen.contrib.lightning.LitModule):
+            #     # entities occur in val and test dataset but not training dataset will be filtered by pykeen 
+            #     self.dataset.entities_str
+            #     self.dataset.entity_to_idx
+
+            # else:
+            #     dataset = self.dataset
             self.evaluator.eval(dataset=self.dataset, trained_model=self.trained_model,
                                 form_of_labelling=form_of_labelling)
             return {**self.report, **self.evaluator.report}

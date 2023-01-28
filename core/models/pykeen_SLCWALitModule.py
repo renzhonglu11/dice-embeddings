@@ -5,11 +5,12 @@ from pykeen.triples.triples_factory import CoreTriplesFactory
 
 class MySLCWALitModule(SLCWALitModule, Pykeen_Module):
     def __init__(self, *, model_name: str, args, **kwargs):
-        Pykeen_Module.__init__(self, model_name)
+        Pykeen_Module.__init__(self, model_name,kwargs['optimizer'])
         # import pdb; pdb.set_trace()
         super().__init__(**kwargs)
         self.loss_history = []
         self.args=args
+        self.train_dataloaders = self.train_dataloader()
 
 
     def training_epoch_end(self, training_step_outputs) -> None:

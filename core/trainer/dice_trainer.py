@@ -20,93 +20,119 @@ from typing import List, Tuple
 from pykeen.contrib.lightning import LitModule
 import platform
 
+
 def initialize_trainer(args, callbacks):
-    if args.trainer == 'torchCPUTrainer':
-        print('Initializing TorchTrainer CPU Trainer...', end='\t')
+    if args.trainer == "torchCPUTrainer":
+        print("Initializing TorchTrainer CPU Trainer...", end="\t")
         return TorchTrainer(args, callbacks=callbacks)
-    elif args.trainer == 'torchDDP':
+    elif args.trainer == "torchDDP":
         if torch.cuda.is_available():
-            print('Initializing TorchDDPTrainer GPU', end='\t')
+            print("Initializing TorchDDPTrainer GPU", end="\t")
             return TorchDDPTrainer(args, callbacks=callbacks)
         else:
-            print('Initializing TorchTrainer CPU Trainer', end='\t')
+            print("Initializing TorchTrainer CPU Trainer", end="\t")
             return TorchTrainer(args, callbacks=callbacks)
-    elif args.trainer == 'PL':
-        print('Initializing Pytorch-lightning Trainer', end='\t')
+    elif args.trainer == "PL":
+        print("Initializing Pytorch-lightning Trainer", end="\t")
         # Pytest with PL problem https://github.com/pytest-dev/pytest/discussions/7995
-        if platform.system().lower() == 'windows':
-            backend = 'gloo'
+        if platform.system().lower() == "windows":
+            backend = "gloo"
         else:
-            backend = 'nccl'
-        return pl.Trainer.from_argparse_args(args,
-                                             strategy=DDPStrategy(find_unused_parameters=False,process_group_backend=backend))
+            backend = "nccl"
+        return pl.Trainer.from_argparse_args(
+            args,
+            strategy=DDPStrategy(
+                find_unused_parameters=False, process_group_backend=backend
+            ),
+        )
     else:
-        print('Initialize TorchTrainer CPU Trainer', end='\t')
+        print("Initialize TorchTrainer CPU Trainer", end="\t")
         return TorchTrainer(args, callbacks=callbacks)
 
 
 def get_callbacks(args):
     from ray.tune.integration.pytorch_lightning import TuneReportCallback
+
     callbacks = [
-                 PrintCallback(),
-                 KGESaveCallback(every_x_epoch=args.save_model_at_every_epoch,
-                                 max_epochs=args.max_epochs,
-                                 path=args.full_storage_path),
-                 AccumulateEpochLossCallback(path=args.full_storage_path),
-                 ]
+        PrintCallback(),
+        KGESaveCallback(
+            every_x_epoch=args.save_model_at_every_epoch,
+            max_epochs=args.max_epochs,
+            path=args.full_storage_path,
+        ),
+        AccumulateEpochLossCallback(path=args.full_storage_path),
+    ]
     for i in args.callbacks:
-        if 'FPPE' in i:
-            if i == 'FPPE':
+        if "FPPE" in i:
+            if i == "FPPE":
                 callbacks.append(
-                    FPPE(num_epochs=args.num_epochs, path=args.full_storage_path, last_percent_to_consider=None))
-            elif 'FPPE' == i[:4] and len(i) > 3:
+                    FPPE(
+                        num_epochs=args.num_epochs,
+                        path=args.full_storage_path,
+                        last_percent_to_consider=None,
+                    )
+                )
+            elif "FPPE" == i[:4] and len(i) > 3:
                 name, param = i[:4], i[4:]
-                assert name == 'FPPE'
+                assert name == "FPPE"
                 assert int(param)
-                callbacks.append(FPPE(num_epochs=args.num_epochs,
-                                      path=args.full_storage_path,
-                                      last_percent_to_consider=int(param)))
+                callbacks.append(
+                    FPPE(
+                        num_epochs=args.num_epochs,
+                        path=args.full_storage_path,
+                        last_percent_to_consider=int(param),
+                    )
+                )
             else:
-                raise KeyError(f'Unexpected input for callbacks ***\t{i}\t***')
-        elif 'PPE' in i:
+                raise KeyError(f"Unexpected input for callbacks ***\t{i}\t***")
+        elif "PPE" in i:
             if "PPE" == i:
                 callbacks.append(
-                    PPE(num_epochs=args.num_epochs, path=args.full_storage_path, last_percent_to_consider=None))
-            elif 'PPE' == i[:3] and len(i) > 3:
+                    PPE(
+                        num_epochs=args.num_epochs,
+                        path=args.full_storage_path,
+                        last_percent_to_consider=None,
+                    )
+                )
+            elif "PPE" == i[:3] and len(i) > 3:
                 name, param = i[:3], i[3:]
-                assert name == 'PPE'
+                assert name == "PPE"
                 assert int(param)
-                callbacks.append(PPE(num_epochs=args.num_epochs,
-                                     path=args.full_storage_path,
-                                     last_percent_to_consider=int(param)))
+                callbacks.append(
+                    PPE(
+                        num_epochs=args.num_epochs,
+                        path=args.full_storage_path,
+                        last_percent_to_consider=int(param),
+                    )
+                )
             else:
-                raise KeyError(f'Unexpected input for callbacks ***\t{i}\t***')
+                raise KeyError(f"Unexpected input for callbacks ***\t{i}\t***")
         else:
-            raise KeyError(f'Unexpected input for callbacks ***\t{i}\t***')
+            raise KeyError(f"Unexpected input for callbacks ***\t{i}\t***")
 
     return callbacks
 
 
 class DICE_Trainer:
     """
-   DICE_Trainer implement
-    1- Pytorch Lightning trainer (https://pytorch-lightning.readthedocs.io/en/stable/common/trainer.html)
-    2- Multi-GPU Trainer(https://pytorch.org/docs/stable/generated/torch.nn.parallel.DistributedDataParallel.html)
-    3- CPU Trainer
+    DICE_Trainer implement
+     1- Pytorch Lightning trainer (https://pytorch-lightning.readthedocs.io/en/stable/common/trainer.html)
+     2- Multi-GPU Trainer(https://pytorch.org/docs/stable/generated/torch.nn.parallel.DistributedDataParallel.html)
+     3- CPU Trainer
 
-    Parameter
-    ---------
-    args
+     Parameter
+     ---------
+     args
 
-    is_continual_training:bool
+     is_continual_training:bool
 
-    storage_path:str
+     storage_path:str
 
-    evaluator:
+     evaluator:
 
-    Returns
-    -------
-    report:dict
+     Returns
+     -------
+     report:dict
     """
 
     def __init__(self, args, is_continual_training, storage_path, evaluator=None):
@@ -118,7 +144,8 @@ class DICE_Trainer:
         # Required for CV.
         self.evaluator = evaluator
         print(
-            f'# of CPUs:{os.cpu_count()} | # of GPUs:{torch.cuda.device_count()} | # of CPUs for dataloader:{self.args.num_core}')
+            f"# of CPUs:{os.cpu_count()} | # of GPUs:{torch.cuda.device_count()} | # of CPUs for dataloader:{self.args.num_core}"
+        )
 
         for i in range(torch.cuda.device_count()):
             print(torch.cuda.get_device_name(i))
@@ -139,52 +166,81 @@ class DICE_Trainer:
         form_of_labelling: str
         """
 
-        self.trainer = self.initialize_trainer(callbacks=get_callbacks(self.args), plugins=[])
+        self.trainer = self.initialize_trainer(
+            callbacks=get_callbacks(self.args), plugins=[]
+        )
         model, form_of_labelling = self.initialize_or_load_model()
-        assert form_of_labelling in ['EntityPrediction', 'RelationPrediction', 'Pyke']
-        assert self.args.scoring_technique in ['KvsSample', '1vsAll', 'KvsAll', 'NegSample']
+        assert form_of_labelling in ["EntityPrediction", "RelationPrediction", "Pyke"]
+        assert self.args.scoring_technique in [
+            "KvsSample",
+            "1vsAll",
+            "KvsAll",
+            "NegSample",
+        ]
         train_loader = self.initialize_dataloader(
-            reload_dataset(path=self.storage_path, form_of_labelling=form_of_labelling,
-                           scoring_technique=self.args.scoring_technique,
-                           neg_ratio=self.args.neg_ratio,
-                           label_smoothing_rate=self.args.label_smoothing_rate))
+            reload_dataset(
+                path=self.storage_path,
+                form_of_labelling=form_of_labelling,
+                scoring_technique=self.args.scoring_technique,
+                neg_ratio=self.args.neg_ratio,
+                label_smoothing_rate=self.args.label_smoothing_rate,
+            )
+        )
         self.trainer.fit(model, train_dataloaders=train_loader)
         return model, form_of_labelling
 
     @timeit
     def initialize_trainer(self, callbacks: List, plugins: List) -> pl.Trainer:
-        """ Initialize Trainer from input arguments """
+        """Initialize Trainer from input arguments"""
         return initialize_trainer(self.args, callbacks)
 
     @timeit
-    def initialize_or_load_model(self):
-        print('Initializing Model...', end='\t')
-        model, form_of_labelling = select_model(vars(self.args), self.is_continual_training, self.storage_path)
-        self.report['form_of_labelling'] = form_of_labelling
-        assert form_of_labelling in ['EntityPrediction', 'RelationPrediction', 'Pyke']
+    def initialize_or_load_model(self, dataset=None):
+        print("Initializing Model...", end="\t")
+        if "pykeen" in self.args.model.lower():
+            model, form_of_labelling = select_model(
+            vars(self.args), self.is_continual_training, self.storage_path, dataset
+        )
+        else:
+            model, form_of_labelling = select_model(
+            vars(self.args), self.is_continual_training, self.storage_path,
+        )
+        self.report["form_of_labelling"] = form_of_labelling
+        assert form_of_labelling in ["EntityPrediction", "RelationPrediction", "Pyke"]
         return model, form_of_labelling
 
     @timeit
-    def initialize_dataloader(self, dataset: torch.utils.data.Dataset) -> torch.utils.data.DataLoader:
-        print('Initializing Dataloader...', end='\t')
+    def initialize_dataloader(
+        self, dataset: torch.utils.data.Dataset
+    ) -> torch.utils.data.DataLoader:
+        print("Initializing Dataloader...", end="\t")
         # https://pytorch.org/docs/stable/data.html#multi-process-data-loading
         # https://github.com/pytorch/pytorch/issues/13246#issuecomment-905703662
-        return torch.utils.data.DataLoader(dataset=dataset, batch_size=self.args.batch_size,
-                                           shuffle=True, collate_fn=dataset.collate_fn,
-                                           num_workers=self.args.num_core, persistent_workers=False)
+        return torch.utils.data.DataLoader(
+            dataset=dataset,
+            batch_size=self.args.batch_size,
+            shuffle=True,
+            collate_fn=dataset.collate_fn,
+            num_workers=self.args.num_core,
+            persistent_workers=False,
+        )
 
     @timeit
-    def initialize_dataset(self, dataset, form_of_labelling) -> torch.utils.data.Dataset:
-        print('Initializing Dataset...', end='\t')
-        train_dataset = construct_dataset(train_set=dataset.train_set,
-                                          valid_set=dataset.valid_set,
-                                          test_set=dataset.test_set,
-                                          entity_to_idx=dataset.entity_to_idx,
-                                          relation_to_idx=dataset.relation_to_idx,
-                                          form_of_labelling=form_of_labelling,
-                                          scoring_technique=self.args.scoring_technique,
-                                          neg_ratio=self.args.neg_ratio,
-                                          label_smoothing_rate=self.args.label_smoothing_rate)
+    def initialize_dataset(
+        self, dataset, form_of_labelling
+    ) -> torch.utils.data.Dataset:
+        print("Initializing Dataset...", end="\t")
+        train_dataset = construct_dataset(
+            train_set=dataset.train_set,
+            valid_set=dataset.valid_set,
+            test_set=dataset.test_set,
+            entity_to_idx=dataset.entity_to_idx,
+            relation_to_idx=dataset.relation_to_idx,
+            form_of_labelling=form_of_labelling,
+            scoring_technique=self.args.scoring_technique,
+            neg_ratio=self.args.neg_ratio,
+            label_smoothing_rate=self.args.label_smoothing_rate,
+        )
         if self.args.eval_model is None:
             del dataset.train_set
             gc.collect()
@@ -194,21 +250,35 @@ class DICE_Trainer:
         # @TODO: SaveDataset
         return train_dataset
 
+
     def start(self, dataset) -> Tuple[BaseKGE, str]:
-        """ Train selected model via the selected training strategy """
+        """Train selected model via the selected training strategy"""
         from ray.tune.integration.pytorch_lightning import TuneReportCallback
-        print('------------------- Train -------------------')
+
+        print("------------------- Train -------------------")
         # (1) Perform K-fold CV
         if self.args.num_folds_for_cv >= 2:
             return self.k_fold_cross_validation(dataset)
         else:
             self.trainer: Union[TorchTrainer, TorchDDPTrainer, pl.Trainer]
-            self.trainer = self.initialize_trainer(callbacks=get_callbacks(self.args), plugins=[])
-            model, form_of_labelling = self.initialize_or_load_model()
-            assert self.args.scoring_technique in ['KvsSample', '1vsAll', 'KvsAll', 'NegSample']
-            train_loader = self.initialize_dataloader(self.initialize_dataset(dataset, form_of_labelling))
+            self.trainer = self.initialize_trainer(
+                callbacks=get_callbacks(self.args), plugins=[]
+            )
+            if "pykeen" in self.args.model.lower():
+                model, form_of_labelling = self.initialize_or_load_model(dataset)
+            else:
+                model, form_of_labelling = self.initialize_or_load_model()
+            assert self.args.scoring_technique in [
+                "KvsSample",
+                "1vsAll",
+                "KvsAll",
+                "NegSample",
+            ]
+            train_loader = self.initialize_dataloader(
+                self.initialize_dataset(dataset, form_of_labelling)
+            )
 
-        if(isinstance(model,LitModule)):
+        if isinstance(model, LitModule):
             self.trainer.fit(model)
             return model, form_of_labelling
 
@@ -216,75 +286,73 @@ class DICE_Trainer:
         # self.tune_mnist_asha(data_loader = train_loader)
 
         self.trainer.fit(model, train_dataloaders=train_loader)
-        
+
         return model, form_of_labelling
 
-    def train_mnist_tune(self,config, num_epochs=10, num_gpus=0, data_loader = None):
-        from pytorch_lightning.loggers import TensorBoardLogger
-        import math
-        
-        from ray.air import session
-        
-        from ray.tune.integration.pytorch_lightning import TuneReportCallback, \
-    TuneReportCheckpointCallback
-        
-        model,_ = self.initialize_or_load_model()
-        self.trainer.callbacks.append(TuneReportCallback(
-                    {
-                        "loss": "avg_loss_per_epoch",
-                        "mean_accuracy": "avg_val_acc_per_epoch"
-                    },
-                    on="validation_end"))
-        
-        self.trainer.fit(model,train_dataloaders=data_loader,val_dataloaders=data_loader)
+    # def train_mnist_tune(self,config, num_epochs=10, num_gpus=0, data_loader = None):
+    #     from pytorch_lightning.loggers import TensorBoardLogger
+    #     import math
 
-    def tune_mnist_asha(self,num_samples=3, num_epochs=5, gpus_per_trial=0, data_loader = None):
-        from ray import air, tune
-        from ray.tune.schedulers import ASHAScheduler, PopulationBasedTraining
-        from ray.tune import CLIReporter
-        config = vars(self.args)
-        config['lr'] = tune.loguniform(1e-4, 1e-1)
-        config['batch_size'] = tune.choice([32, 64, 128])
+    #     from ray.air import session
 
+    #     from ray.tune.integration.pytorch_lightning import TuneReportCallback, \
+    # TuneReportCheckpointCallback
 
-        scheduler = ASHAScheduler(
-            max_t=num_epochs,
-            grace_period=1,
-            reduction_factor=2)
+    #     model,_ = self.initialize_or_load_model()
+    #     self.trainer.callbacks.append(TuneReportCallback(
+    #                 {
+    #                     "loss": "avg_loss_per_epoch",
+    #                     "mean_accuracy": "avg_val_acc_per_epoch"
+    #                 },
+    #                 on="validation_end"))
 
-        reporter = CLIReporter(
-            parameter_columns=[ "lr", "batch_size"],
-            metric_columns=["loss", "mean_accuracy", "training_iteration"])
+    #     self.trainer.fit(model,train_dataloaders=data_loader,val_dataloaders=data_loader)
 
-        train_fn_with_parameters = tune.with_parameters(self.train_mnist_tune,
-                                                        num_epochs=num_epochs,
-                                                        num_gpus=gpus_per_trial,
-                                                        data_loader = data_loader
-                                                        )
-        resources_per_trial = {"cpu": 1, "gpu": gpus_per_trial}
-        
-        tuner = tune.Tuner(
-            tune.with_resources(
-                train_fn_with_parameters,
-                resources=resources_per_trial
-            ),
-            tune_config=tune.TuneConfig(
-                metric="loss",
-                mode="min",
-                scheduler=scheduler,
-                num_samples=num_samples,
-            ),
-            run_config=air.RunConfig(
-                name="tune_mnist_asha",
-                progress_reporter=reporter,
-            ),
-            param_space=config,
-        )
-        results = tuner.fit()
+    # def tune_mnist_asha(self,num_samples=3, num_epochs=5, gpus_per_trial=0, data_loader = None):
+    #     from ray import air, tune
+    #     from ray.tune.schedulers import ASHAScheduler, PopulationBasedTraining
+    #     from ray.tune import CLIReporter
+    #     config = vars(self.args)
+    #     config['lr'] = tune.loguniform(1e-4, 1e-1)
+    #     config['batch_size'] = tune.choice([32, 64, 128])
 
-        print("Best hyperparameters found were: ", results.get_best_result().config)
+    #     scheduler = ASHAScheduler(
+    #         max_t=num_epochs,
+    #         grace_period=1,
+    #         reduction_factor=2)
 
-    
+    #     reporter = CLIReporter(
+    #         parameter_columns=[ "lr", "batch_size"],
+    #         metric_columns=["loss", "mean_accuracy", "training_iteration"])
+
+    #     train_fn_with_parameters = tune.with_parameters(self.train_mnist_tune,
+    #                                                     num_epochs=num_epochs,
+    #                                                     num_gpus=gpus_per_trial,
+    #                                                     data_loader = data_loader
+    #                                                     )
+    #     resources_per_trial = {"cpu": 1, "gpu": gpus_per_trial}
+
+    #     tuner = tune.Tuner(
+    #         tune.with_resources(
+    #             train_fn_with_parameters,
+    #             resources=resources_per_trial
+    #         ),
+    #         tune_config=tune.TuneConfig(
+    #             metric="loss",
+    #             mode="min",
+    #             scheduler=scheduler,
+    #             num_samples=num_samples,
+    #         ),
+    #         run_config=air.RunConfig(
+    #             name="tune_mnist_asha",
+    #             progress_reporter=reporter,
+    #         ),
+    #         param_space=config,
+    #     )
+    #     results = tuner.fit()
+
+    #     print("Best hyperparameters found were: ", results.get_best_result().config)
+
     def k_fold_cross_validation(self, dataset) -> Tuple[BaseKGE, str]:
         """
         Perform K-fold Cross-Validation
@@ -300,7 +368,7 @@ class DICE_Trainer:
         :param dataset:
         :return: model
         """
-        print(f'{self.args.num_folds_for_cv}-fold cross-validation')
+        print(f"{self.args.num_folds_for_cv}-fold cross-validation")
         kf = KFold(n_splits=self.args.num_folds_for_cv, shuffle=True, random_state=1)
         model = None
         eval_folds = []
@@ -309,26 +377,40 @@ class DICE_Trainer:
             # Need to create a new copy for the callbacks
             args = copy.copy(self.args)
             trainer = initialize_trainer(args, get_callbacks(args))
-            model, form_of_labelling = select_model(vars(args), self.is_continual_training, self.storage_path)
-            print(f'{form_of_labelling} training starts: {model.name}')
+            model, form_of_labelling = select_model(
+                vars(args), self.is_continual_training, self.storage_path
+            )
+            print(f"{form_of_labelling} training starts: {model.name}")
 
-            train_set_for_i_th_fold, test_set_for_i_th_fold = dataset.train_set[train_index], dataset.train_set[
-                test_index]
+            train_set_for_i_th_fold, test_set_for_i_th_fold = (
+                dataset.train_set[train_index],
+                dataset.train_set[test_index],
+            )
 
-            trainer.fit(model, train_dataloaders=self.initialize_dataloader(
-                construct_dataset(train_set=train_set_for_i_th_fold,
-                                  entity_to_idx=dataset.entity_to_idx,
-                                  relation_to_idx=dataset.relation_to_idx,
-                                  form_of_labelling=form_of_labelling,
-                                  scoring_technique=self.args.scoring_technique,
-                                  neg_ratio=self.args.neg_ratio,
-                                  label_smoothing_rate=self.args.label_smoothing_rate)))
+            trainer.fit(
+                model,
+                train_dataloaders=self.initialize_dataloader(
+                    construct_dataset(
+                        train_set=train_set_for_i_th_fold,
+                        entity_to_idx=dataset.entity_to_idx,
+                        relation_to_idx=dataset.relation_to_idx,
+                        form_of_labelling=form_of_labelling,
+                        scoring_technique=self.args.scoring_technique,
+                        neg_ratio=self.args.neg_ratio,
+                        label_smoothing_rate=self.args.label_smoothing_rate,
+                    )
+                ),
+            )
 
-            res = self.evaluator.eval_with_data(dataset=dataset, trained_model=model, triple_idx=test_set_for_i_th_fold,
-                                                form_of_labelling=form_of_labelling)
+            res = self.evaluator.eval_with_data(
+                dataset=dataset,
+                trained_model=model,
+                triple_idx=test_set_for_i_th_fold,
+                form_of_labelling=form_of_labelling,
+            )
             # res = self.evaluator.evaluate_lp_k_vs_all(model, test_set_for_i_th_fold, form_of_labelling=form_of_labelling)
-            eval_folds.append([res['MRR'], res['H@1'], res['H@3'], res['H@10']])
-        eval_folds = pd.DataFrame(eval_folds, columns=['MRR', 'H@1', 'H@3', 'H@10'])
+            eval_folds.append([res["MRR"], res["H@1"], res["H@3"], res["H@10"]])
+        eval_folds = pd.DataFrame(eval_folds, columns=["MRR", "H@1", "H@3", "H@10"])
         self.evaluator.report = eval_folds.to_dict()
         print(eval_folds)
         print(eval_folds.describe())

@@ -15,11 +15,14 @@ import functools
 import pickle
 import os
 import psutil
-from pykeen.datasets.base import PathDataset
+import pykeen
 from pykeen.datasets.literal_base import NumericPathDataset
 from pykeen.contrib.lightning import LitModule
 from pykeen.models.nbase import ERModel
 from pykeen.nn.modules import interaction_resolver
+from pykeen.datasets.base import PathDataset, EagerDataset
+from pykeen.triples.triples_factory import CoreTriplesFactory,TriplesFactory
+
 
 def timeit(func):
     @functools.wraps(func)
@@ -29,7 +32,8 @@ def timeit(func):
         end_time = time.perf_counter()
         total_time = end_time - start_time
         print(
-            f'Took {total_time:.4f} seconds | Current Memory Usage {psutil.Process(os.getpid()).memory_info().rss / 1000000: .5} in MB')
+            f"Took {total_time:.4f} seconds | Current Memory Usage {psutil.Process(os.getpid()).memory_info().rss / 1000000: .5} in MB"
+        )
         return result
 
     return timeit_wrapper
@@ -40,13 +44,16 @@ def save_pickle(*, data: object, file_path=str):
 
 
 def load_pickle(*, file_path=str):
-    with open(file_path, 'rb') as f:
+    with open(file_path, "rb") as f:
         return pickle.load(f)
 
 
 # @TODO: Could these funcs can be merged?
 def select_model(
-    args: dict, is_continual_training: bool = None, storage_path: str = None
+    args: dict,
+    is_continual_training: bool = None,
+    storage_path: str = None,
+    dataset=None,
 ):
     isinstance(args, dict)
     assert len(args) > 0
@@ -67,11 +74,13 @@ def select_model(
             )
         return model, _
     else:
-        return intialize_model(args)
+        return intialize_model(args, dataset) if "pykeen" in args['model'].lower() else intialize_model(args)
 
 
-def load_model(path_of_experiment_folder, model_name='model.pt') -> Tuple[BaseKGE, dict, dict]:
-    """ Load weights and initialize pytorch module from namespace arguments"""
+def load_model(
+    path_of_experiment_folder, model_name="model.pt"
+) -> Tuple[BaseKGE, dict, dict]:
+    """Load weights and initialize pytorch module from namespace arguments"""
     print(f"Loading model {model_name}...", end=" ")
     start_time = time.time()
     # (1) Load weights..
@@ -94,21 +103,21 @@ def load_model(path_of_experiment_folder, model_name='model.pt') -> Tuple[BaseKG
         parameter.requires_grad = False
     model.eval()
     start_time = time.time()
-    print('Loading entity and relation indexes...', end=' ')
-    with open(path_of_experiment_folder + '/entity_to_idx.p', 'rb') as f:
+    print("Loading entity and relation indexes...", end=" ")
+    with open(path_of_experiment_folder + "/entity_to_idx.p", "rb") as f:
         entity_to_idx = pickle.load(f)
-    with open(path_of_experiment_folder + '/relation_to_idx.p', 'rb') as f:
+    with open(path_of_experiment_folder + "/relation_to_idx.p", "rb") as f:
         relation_to_idx = pickle.load(f)
     assert isinstance(entity_to_idx, dict)
     assert isinstance(relation_to_idx, dict)
-    print(f'Done! It took {time.time() - start_time:.4f}')
+    print(f"Done! It took {time.time() - start_time:.4f}")
     return model, entity_to_idx, relation_to_idx
 
 
 def load_model_ensemble(
     path_of_experiment_folder: str,
 ) -> Tuple[BaseKGE, pd.DataFrame, pd.DataFrame]:
-    """ Construct Ensemble Of weights and initialize pytorch module from namespace arguments
+    """Construct Ensemble Of weights and initialize pytorch module from namespace arguments
 
     (1) Detect models under given path
     (2) Accumulate parameters of detected models
@@ -156,14 +165,14 @@ def load_model_ensemble(
         parameter.requires_grad = False
     model.eval()
     start_time = time.time()
-    print('Loading entity and relation indexes...', end=' ')
-    with open(path_of_experiment_folder + '/entity_to_idx.p', 'rb') as f:
+    print("Loading entity and relation indexes...", end=" ")
+    with open(path_of_experiment_folder + "/entity_to_idx.p", "rb") as f:
         entity_to_idx = pickle.load(f)
-    with open(path_of_experiment_folder + '/relation_to_idx.p', 'rb') as f:
+    with open(path_of_experiment_folder + "/relation_to_idx.p", "rb") as f:
         relation_to_idx = pickle.load(f)
     assert isinstance(entity_to_idx, dict)
     assert isinstance(relation_to_idx, dict)
-    print(f'Done! It took {time.time() - start_time:.4f}')
+    print(f"Done! It took {time.time() - start_time:.4f}")
     return model, entity_to_idx, relation_to_idx
 
 
@@ -185,23 +194,28 @@ def numpy_data_type_changer(train_set: np.ndarray, num: int) -> np.ndarray:
         # print(f'Setting int32,\t {np.iinfo(np.int32).max}')
         train_set = train_set.astype(np.int32)
     else:
-        raise TypeError('Int64?')
+        raise TypeError("Int64?")
     return train_set
 
 
 def save_checkpoint_model(trainer, model, path: str) -> None:
-    """ Store Pytorch model into disk"""
+    """Store Pytorch model into disk"""
     try:
         torch.save(model.state_dict(), path)
     except ReferenceError as e:
         print(e)
         print(model.name)
-        print('Could not save the model correctly')
+        print("Could not save the model correctly")
 
 
-def store(trainer,
-          trained_model, model_name: str = 'model', full_storage_path: str = None,
-          dataset=None, save_as_csv=False) -> None:
+def store(
+    trainer,
+    trained_model,
+    model_name: str = "model",
+    full_storage_path: str = None,
+    dataset=None,
+    save_as_csv=False,
+) -> None:
     """
     Store trained_model model and save embeddings into csv file.
     :param trainer: an instance of trainer class
@@ -217,35 +231,52 @@ def store(trainer,
     assert len(model_name) > 1
 
     # (1) Save pytorch model in trained_model .
-    save_checkpoint_model(trainer=trainer,
-                          model=trained_model, path=full_storage_path + f'/{model_name}.pt')
+    save_checkpoint_model(
+        trainer=trainer,
+        model=trained_model,
+        path=full_storage_path + f"/{model_name}.pt",
+    )
     if save_as_csv:
         entity_emb, relation_ebm = trained_model.get_embeddings()
         if entity_emb is None:
             return
         if isinstance(entity_emb, list) and len(entity_emb) == 0:
             return
-        entity_to_idx = pickle.load(open(full_storage_path + '/entity_to_idx.p', 'rb'))
+        
+        if hasattr(trained_model,'dataset'):
+        # if isinstance(trained_model.dataset, pykeen.datasets.base.PathDataset):
+        #     # solve the problem of filtered triples in pykeen
+            entity_to_idx = trained_model.dataset.entity_to_id
+        else:
+            entity_to_idx = pickle.load(
+                open(full_storage_path + "/entity_to_idx.p", "rb")
+            )
         entity_str = entity_to_idx.keys()
         # Ensure that the ordering is correct.
         assert list(range(0, len(entity_str))) == list(entity_to_idx.values())
         # TODO: model of pykeen may have empty entity_emb. Logic need to be changed here
 
         if isinstance(entity_emb, list) and len(entity_emb) >= 1:
-                for i in range(len(entity_emb)):
-                    save_embeddings(
-                        entity_emb[i].numpy(),
-                        indexes=entity_str,
-                        path=full_storage_path
-                        + "/"
-                        + trained_model.name
-                        + "_entity_embeddings_"
-                        + str(i)
-                        + ".csv",
-                    )
+            for i in range(len(entity_emb)):
+                save_embeddings(
+                    entity_emb[i].numpy(),
+                    indexes=entity_str,
+                    path=full_storage_path
+                    + "/"
+                    + trained_model.name
+                    + "_entity_embeddings_"
+                    + str(i)
+                    + ".csv",
+                )
         else:
-            save_embeddings(entity_emb.numpy(), indexes=entity_str,
-                        path=full_storage_path + '/' + trained_model.name + '_entity_embeddings.csv')
+            save_embeddings(
+                entity_emb.numpy(),
+                indexes=entity_str,
+                path=full_storage_path
+                + "/"
+                + trained_model.name
+                + "_entity_embeddings.csv",
+            )
         del entity_to_idx, entity_str, entity_emb
 
         if relation_ebm is None:
@@ -256,19 +287,19 @@ def store(trainer,
 
         relation_to_idx = pickle.load(open(full_storage_path + '/relation_to_idx.p', 'rb'))
         relations_str = relation_to_idx.keys()
-        
+
         if isinstance(relation_ebm, list) and len(relation_ebm) >= 1:
-                for i in range(len(relation_ebm)):
-                    save_embeddings(
-                        relation_ebm[i].numpy(),
-                        indexes=relations_str,
-                        path=full_storage_path
-                        + "/"
-                        + trained_model.name
-                        + "_relation_embeddings_"
-                        + str(i)
-                        + ".csv",
-                    )
+            for i in range(len(relation_ebm)):
+                save_embeddings(
+                    relation_ebm[i].numpy(),
+                    indexes=relations_str,
+                    path=full_storage_path
+                    + "/"
+                    + trained_model.name
+                    + "_relation_embeddings_"
+                    + str(i)
+                    + ".csv",
+                )
         else:
             save_embeddings(relation_ebm.numpy(), indexes=relations_str,
                             path=full_storage_path + '/' + trained_model.name + '_relation_embeddings.csv')
@@ -313,31 +344,37 @@ def add_noisy_triples(train_set: pd.DataFrame, add_noise_rate: float) -> pd.Data
 
 
 def read_or_load_kg(args, cls):
-    print('*** Read or Load Knowledge Graph  ***')
+    print("*** Read or Load Knowledge Graph  ***")
     start_time = time.time()
-    kg = cls(data_dir=args.path_dataset_folder,
-             add_reciprical=args.apply_reciprical_or_noise,
-             eval_model=args.eval_model,
-             read_only_few=args.read_only_few,
-             sample_triples_ratio=args.sample_triples_ratio,
-             path_for_serialization=args.full_storage_path,
-             path_for_deserialization=args.path_experiment_folder if hasattr(args, 'path_experiment_folder') else None,
-             backend=args.backend)
-    print(f'Preprocessing took: {time.time() - start_time:.3f} seconds')
+    kg = cls(
+        data_dir=args.path_dataset_folder,
+        add_reciprical=args.apply_reciprical_or_noise,
+        eval_model=args.eval_model,
+        read_only_few=args.read_only_few,
+        sample_triples_ratio=args.sample_triples_ratio,
+        path_for_serialization=args.full_storage_path,
+        path_for_deserialization=args.path_experiment_folder
+        if hasattr(args, "path_experiment_folder")
+        else None,
+        backend=args.backend,
+    )
+    print(f"Preprocessing took: {time.time() - start_time:.3f} seconds")
     # (2) Share some info about data for easy access.
     print(kg.description_of_input)
     return kg
 
 
-def get_dataset_from_pykeen(path, model_name):
-    train_path = path + "/train.txt"
-    test_path = path + "/test.txt"
-    valid_path = path + "/valid.txt"
-    literal_path = path + "/literals.txt"
+def get_dataset_from_pykeen(model_name, dataset, path=None):
+    use_inverse_triples = False
     if "Literal" in model_name.strip():
+        train_path = path + "/train.txt"
+        test_path = path + "/test.txt"
+        valid_path = path + "/valid.txt"
+        literal_path = path + "/literals.txt"
         # @TODO: literalModel have two embeddings of entity_representations
         # should we also implment this kind of model???
         # https://github.com/pykeen/pykeen/blob/e0471a0c52b92a674e7c9186f324d6aacbebb1b1/src/pykeen/datasets/literal_base.py
+        # can only use function of pykeen to load the data (sa far I know)
         return NumericPathDataset(
             training_path=train_path,
             testing_path=test_path,
@@ -346,25 +383,25 @@ def get_dataset_from_pykeen(path, model_name):
         )
 
     if model_name.strip() == "NodePiece" or model_name.strip() == "CompGCN":
-        return PathDataset(
-            training_path=train_path,
-            testing_path=test_path,
-            validation_path=valid_path,
-            create_inverse_triples=True,  # NodePiece need in inverse triple
-        )
+        use_inverse_triples = True
 
-    return PathDataset(
-        training_path=train_path, testing_path=test_path, validation_path=valid_path
-    )
+    training_tf = TriplesFactory(dataset.train_set,dataset.entity_to_idx,dataset.relation_to_idx,create_inverse_triples=use_inverse_triples,)
+    testing_tf = TriplesFactory(dataset.test_set,dataset.entity_to_idx,dataset.relation_to_idx,create_inverse_triples=use_inverse_triples,)
+    validation_tf = TriplesFactory(dataset.valid_set,dataset.entity_to_idx,dataset.relation_to_idx,create_inverse_triples=use_inverse_triples,)
+    
+    dataset = EagerDataset(training_tf, testing_tf, validation_tf)
+
+    return dataset
 
 
-def get_pykeen_model(model_name, args):
+def get_pykeen_model(model_name, args, dataset):
     interaction_model = None
     passed_model = None
     model = None
     path = args["path_dataset_folder"]
     actual_name = model_name.split("_")[1]
-    dataset = get_dataset_from_pykeen(path, actual_name)
+    # dataset = get_dataset_from_pykeen(path, actual_name)
+    _dataset = get_dataset_from_pykeen(actual_name, dataset)
 
     # initialize model by name or by interaction function
     if "interaction" in model_name.lower():
@@ -374,68 +411,71 @@ def get_pykeen_model(model_name, args):
 
         # using class_resolver to find out the corresponding shape of interaction
         # https://pykeen.readthedocs.io/en/latest/tutorial/using_resolvers.html#using-resolvers
-        interaction_instance = interaction_resolver.make(actual_name,intection_kwargs)
-        if hasattr(interaction_instance,'relation_shape'):
+        interaction_instance = interaction_resolver.make(actual_name, intection_kwargs)
+        if hasattr(interaction_instance, "relation_shape"):
             list_len = len(interaction_instance.relation_shape)
             relation_representations = [None for x in range(list_len)]
 
-        if hasattr(interaction_instance,'entity_shape'):
+        if hasattr(interaction_instance, "entity_shape"):
             list_len = len(interaction_instance.entity_shape)
             entity_representations = [None for x in range(list_len)]
-        
 
         interaction_model = ERModel(
-                triples_factory=dataset.training,
-                entity_representations=entity_representations,
-                relation_representations=relation_representations,
-                interaction=actual_name,
-                entity_representations_kwargs=dict(
-                    embedding_dim=args["embedding_dim"],
-                    dropout=args["input_dropout_rate"],
-                ),
-                relation_representations_kwargs=dict(
-                    embedding_dim=args["embedding_dim"],
-                    dropout=args["input_dropout_rate"],
-                ),
-                interaction_kwargs= args["interaction_kwargs"]
-            )
-        passed_model = interaction_model       
+            triples_factory=_dataset.training,
+            entity_representations=entity_representations,
+            relation_representations=relation_representations,
+            interaction=actual_name,
+            entity_representations_kwargs=dict(
+                embedding_dim=args["embedding_dim"],
+                dropout=args["input_dropout_rate"],
+            ),
+            relation_representations_kwargs=dict(
+                embedding_dim=args["embedding_dim"],
+                dropout=args["input_dropout_rate"],
+            ),
+            interaction_kwargs=args["interaction_kwargs"],
+        )
+        passed_model = interaction_model
     else:
         passed_model = actual_name
     # initialize module for pytorch-lightning trainer
     if args["use_SLCWALitModule"]:
         model = MySLCWALitModule(
-            dataset=dataset,
+            dataset=_dataset,
             model=passed_model,
             model_name=actual_name,
             model_kwargs=args["pykeen_model_kwargs"],
+            learning_rate=args["lr"],
+            optimizer=args["optim"],
             batch_size=args["batch_size"],
-            args = args,
-            negative_sampler = 'basic',
-            negative_sampler_kwargs = dict(
+            args=args,
+            negative_sampler="basic",
+            negative_sampler_kwargs=dict(
                 filtered=True,
-            )
+            ),
         )
     else:
         model = MyLCWALitModule(
-            dataset=dataset,
+            dataset=_dataset,
             model=passed_model,
             model_name=actual_name,
+            learning_rate=args["lr"],
+            optimizer=args["optim"],
             model_kwargs=args["pykeen_model_kwargs"],
             batch_size=args["batch_size"],
-            args = args
+            args=args,
         )
     return model
 
 
-def intialize_model(args: dict) -> Tuple[pl.LightningModule, AnyStr]:
+def intialize_model(args: dict, dataset=None) -> Tuple[pl.LightningModule, AnyStr]:
     print("Initializing the selected model...", end=" ")
     # @TODO: Apply construct_krone as callback? or use KronE_QMult as a prefix.
     start_time = time.time()
     model_name = args["model"]
 
     if "pykeen" in model_name.lower():
-        model = get_pykeen_model(model_name, args)
+        model = get_pykeen_model(model_name, args, dataset)
         form_of_labelling = "EntityPrediction"
         # import pdb; pdb.set_trace()
     elif model_name == "KronELinear":
@@ -459,11 +499,11 @@ def intialize_model(args: dict) -> Tuple[pl.LightningModule, AnyStr]:
         form_of_labelling = "RelationPrediction"
     elif model_name == "ConEx":
         model = ConEx(args=args)
-        form_of_labelling = 'EntityPrediction'
-    elif model_name == 'AConEx':
+        form_of_labelling = "EntityPrediction"
+    elif model_name == "AConEx":
         model = AConEx(args=args)
-        form_of_labelling = 'EntityPrediction'
-    elif model_name == 'QMult':
+        form_of_labelling = "EntityPrediction"
+    elif model_name == "QMult":
         model = QMult(args=args)
         form_of_labelling = "EntityPrediction"
     elif model_name == "OMult":
@@ -483,19 +523,17 @@ def intialize_model(args: dict) -> Tuple[pl.LightningModule, AnyStr]:
         form_of_labelling = "EntityPrediction"
     elif model_name == "TransE":
         model = TransE(args=args)
-        form_of_labelling = 'EntityPrediction'
-    elif model_name == 'Pyke':
+        form_of_labelling = "EntityPrediction"
+    elif model_name == "Pyke":
         model = Pyke(args=args)
-        form_of_labelling = 'Pyke'
-    elif model_name == 'CLf':
+        form_of_labelling = "Pyke"
+    elif model_name == "CLf":
         model = CLf(args=args)
         form_of_labelling = "EntityPrediction"
     # elif for PYKEEN https://github.com/dice-group/dice-embeddings/issues/54
     else:
         raise ValueError
     return model, form_of_labelling
-
-
 
 
 def load_json(p: str) -> dict:
@@ -519,15 +557,15 @@ def save_embeddings(embeddings: np.ndarray, indexes, path: str) -> None:
             embeddings = embeddings.reshape(embeddings.shape[0], -1)
 
         if embeddings.shape[0] > len(indexes):
-            # models from pykeen may have n*len(indexs) rows of relations and entities(n=1,2,..,Z)  
+            # models from pykeen may have n*len(indexs) rows of relations and entities(n=1,2,..,Z)
             num_of_extends = embeddings.shape[0] // len(indexes)
             for _ in range(num_of_extends - 1):
                 _indexes.extend(indexes)
 
         df = pd.DataFrame(embeddings, index=_indexes)
         del embeddings
-        num_mb = df.memory_usage(index=True, deep=True).sum() / (10 ** 6)
-        if num_mb > 10 ** 6:
+        num_mb = df.memory_usage(index=True, deep=True).sum() / (10**6)
+        if num_mb > 10**6:
             df = dd.from_pandas(df, npartitions=len(df) / 100)
             # PARQUET wants columns to be stn
             df.columns = df.columns.astype(str)
@@ -540,8 +578,6 @@ def save_embeddings(embeddings: np.ndarray, indexes, path: str) -> None:
         )
         print(e)
     del df
-
-   
 
 
 def random_prediction(pre_trained_kge):
@@ -574,8 +610,12 @@ def deploy_tail_entity_prediction(pre_trained_kge, str_subject, str_predicate, t
     if pre_trained_kge.model.name == "Shallom":
         print("Tail entity prediction is not available for Shallom")
         raise NotImplementedError
-    scores, entity = pre_trained_kge.predict_topk(head_entity=[str_subject], relation=[str_predicate], topk=top_k)
-    return f'(  {str_subject},  {str_predicate}, ? )', pd.DataFrame({'Entity': entity, 'Score': scores})
+    scores, entity = pre_trained_kge.predict_topk(
+        head_entity=[str_subject], relation=[str_predicate], topk=top_k
+    )
+    return f"(  {str_subject},  {str_predicate}, ? )", pd.DataFrame(
+        {"Entity": entity, "Score": scores}
+    )
 
 
 def deploy_head_entity_prediction(pre_trained_kge, str_object, str_predicate, top_k):
@@ -583,16 +623,26 @@ def deploy_head_entity_prediction(pre_trained_kge, str_object, str_predicate, to
         print("Head entity prediction is not available for Shallom")
         raise NotImplementedError
 
-    scores, entity = pre_trained_kge.predict_topk(tail_entity=[str_object], relation=[str_predicate], topk=top_k)
-    return f'(  ?,  {str_predicate}, {str_object} )', pd.DataFrame({'Entity': entity, 'Score': scores})
+    scores, entity = pre_trained_kge.predict_topk(
+        tail_entity=[str_object], relation=[str_predicate], topk=top_k
+    )
+    return f"(  ?,  {str_predicate}, {str_object} )", pd.DataFrame(
+        {"Entity": entity, "Score": scores}
+    )
 
 
 def deploy_relation_prediction(pre_trained_kge, str_subject, str_object, top_k):
-    scores, relations = pre_trained_kge.predict_topk(head_entity=[str_subject], tail_entity=[str_object], topk=top_k)
-    return f'(  {str_subject}, ?, {str_object} )', pd.DataFrame({'Relations': relations, 'Score': scores})
+    scores, relations = pre_trained_kge.predict_topk(
+        head_entity=[str_subject], tail_entity=[str_object], topk=top_k
+    )
+    return f"(  {str_subject}, ?, {str_object} )", pd.DataFrame(
+        {"Relations": relations, "Score": scores}
+    )
 
 
-def semi_supervised_split(train_set: np.ndarray, train_split_ratio=None, calibration_split_ratio=None):
+def semi_supervised_split(
+    train_set: np.ndarray, train_split_ratio=None, calibration_split_ratio=None
+):
     """
     Split input triples into three splits
     1. split corresponds to the first 10% of the input
@@ -792,12 +842,12 @@ def vocab_to_parquet(vocab_to_idx, name, path_for_serialization, print_into):
     print("Done !\n")
 
 
-def create_experiment_folder(folder_name='Experiments'):
+def create_experiment_folder(folder_name="Experiments"):
     directory = os.getcwd() + "/" + folder_name + "/"
     # folder_name = str(datetime.datetime.now())
-    folder_name = str(datetime.datetime.now()).replace(':','-')
+    folder_name = str(datetime.datetime.now()).replace(":", "-")
     # path_of_folder = directory + folder_name
-    path_of_folder = os.path.join(directory,folder_name)
+    path_of_folder = os.path.join(directory, folder_name)
     os.makedirs(path_of_folder)
     return path_of_folder
 
@@ -808,9 +858,13 @@ def continual_training_setup_executor(executor):
         executor.storage_path = executor.args.full_storage_path
     else:
         # (4.2) Create a folder for the experiments.
-        executor.args.full_storage_path = create_experiment_folder(folder_name=executor.args.storage_path)
+        executor.args.full_storage_path = create_experiment_folder(
+            folder_name=executor.args.storage_path
+        )
         executor.storage_path = executor.args.full_storage_path
-        with open(executor.args.full_storage_path + '/configuration.json', 'w') as file_descriptor:
+        with open(
+            executor.args.full_storage_path + "/configuration.json", "w"
+        ) as file_descriptor:
             temp = vars(executor.args)
             json.dump(temp, file_descriptor, indent=3)
 
