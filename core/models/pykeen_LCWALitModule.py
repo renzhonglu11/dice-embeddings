@@ -6,7 +6,7 @@ from pykeen.triples.triples_factory import CoreTriplesFactory
 
 class MyLCWALitModule(LCWALitModule,Pykeen_Module):
     def __init__(self, *, model_name: str,args, **kwargs):
-        Pykeen_Module.__init__(self,model_name,kwargs['optimizer'])
+        Pykeen_Module.__init__(self,model_name , kwargs['optimizer'])
         super().__init__(**kwargs)
         self.loss_history = []
         self.args=args

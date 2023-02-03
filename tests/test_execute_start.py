@@ -128,11 +128,11 @@ class TestDefaultParams:
 
     def test_distmult(self):
         args = argparse_default([])
-        args.model = 'DistMult'
+        args.model = 'ConEx'
         # args.num_epochs = 1
         args.scoring_technique = 'NegSample'
-        args.path_dataset_folder = 'KGs/UMLS'
-        args.num_epochs = 10
+        args.path_dataset_folder = 'KGs/Nations'
+        args.num_epochs = 1
         args.batch_size = 1024
         args.embedding_dim = 64
         args.lr = 0.01

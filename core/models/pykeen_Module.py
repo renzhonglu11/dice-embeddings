@@ -3,6 +3,8 @@ from pykeen import predict
 import torch
 import numpy as np
 from typing import Dict, Tuple
+import pandas as pd
+from .base_model import *
 
 
 class Pykeen_Module:
@@ -57,16 +59,25 @@ class Pykeen_Module:
         # https://twitter.com/PyTorch/status/1437838242418671620?s=20&t=8pEheJu4kRaLyJHBBLUvZA (solution)
         # torch_max_mem will be used by default. If the tensors are not moved to cuda, a warning will occur
         # https://pykeen.readthedocs.io/en/latest/reference/predict.html#predict-triples-df (migration guide)
+        
         if t_prediction:
             # torch.tensor(predictions_tails.df.score)
-            predictions_tails = predict.predict_target(model=self.model,head = x[0,0].item(),relation = x[0,1].item(),targets=x[:,2])
-            return torch.tensor(predictions_tails.df.score)
+
+            predictions_tails = predict.predict_target(model=self.model,head = x[0,0].item(),relation = x[0,1].item(),)
+            # for _ ,row in predictions_tails.df.iterrows():
+            #     lst[int(row['tail_id'])] = row['score']
+            _df = predictions_tails.df.sort_values(by=['tail_id'])
+            return torch.tensor(_df.score,dtype=torch.float64)
+            # return lst
         if h_prediction:
             predictions_heads = predict.predict_target(model=self.model, relation = x[0,1].item(),tail=x[0,2].item(),targets=x[:,0])
-            return torch.tensor(predictions_heads.df.score)
+            # for row in predictions_heads.df.iterrows():
+            #     lst[int(row['head_id'])] = row['score']
+            _df = predictions_heads.df.sort_values(by=['head_id'])
+            # return lst
+            return torch.tensor(_df.score,dtype=torch.float64)
         
         # return predict.predict_triples(model=self.model, triples=x.to("cuda"),).scores.clone()
-
 
     def mem_of_model(self) -> Dict:
         """ Size of model in MB and number of params"""

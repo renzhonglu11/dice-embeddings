@@ -302,6 +302,7 @@ class Evaluator:
         # Iterate over test triples
         all_entities = torch.arange(0, self.num_entities).long()
         all_entities = all_entities.reshape(len(all_entities), )
+
         # Iterating one by one is not good when you are using batch norm
         for i in range(0, len(triple_idx)):
             # 1. Get a triple

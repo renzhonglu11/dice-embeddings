@@ -401,7 +401,7 @@ def get_pykeen_model(model_name, args, dataset):
     path = args["path_dataset_folder"]
     actual_name = model_name.split("_")[1]
     # dataset = get_dataset_from_pykeen(path, actual_name)
-    _dataset = get_dataset_from_pykeen(actual_name, dataset)
+    _dataset = get_dataset_from_pykeen(actual_name, dataset, path=path)
 
     # initialize model by name or by interaction function
     if "interaction" in model_name.lower():
@@ -443,7 +443,7 @@ def get_pykeen_model(model_name, args, dataset):
         model = MySLCWALitModule(
             dataset=_dataset,
             model=passed_model,
-            model_name=actual_name,
+            # model_name=actual_name,
             model_kwargs=args["pykeen_model_kwargs"],
             learning_rate=args["lr"],
             optimizer=args["optim"],

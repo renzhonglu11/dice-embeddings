@@ -136,6 +136,7 @@ class DICE_Trainer:
     """
 
     def __init__(self, args, is_continual_training, storage_path, evaluator=None):
+        
         self.report = dict()
         self.args = args
         self.trainer = None
@@ -279,7 +280,7 @@ class DICE_Trainer:
             )
 
         if isinstance(model, LitModule):
-            self.trainer.fit(model)
+            self.trainer.fit(model,train_dataloaders=model.train_dataloaders)
             return model, form_of_labelling
 
         # hyparameter tune by ray

@@ -9,8 +9,8 @@
             "type": "python",
             "request": "launch",
             "program": "${file}",
-            "purpose": ["debug-test"],
-            "console": "internalConsole", // defines that the configuration should be used when debugging tests in VS Code
+            "purpose": ["debug-test"], // defines that the configuration should be used when debugging tests in VS Code
+            "console": "internalConsole", 
             "justMyCode": false,
             "env": {"PL_TORCH_DISTRIBUTED_BACKEND":"gloo"},
           }

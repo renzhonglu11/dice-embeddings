@@ -1,19 +1,25 @@
 @echo off
 SETLOCAL
-CALL :Start KGs/UMLS , Pykeen_DistMult
-CALL :Start KGs/UMLS , Pykeen_ComplEx
-@REM CALL :Start KGs/UMLS , DistMult
-@REM CALL :Start KGs/UMLS , ConEx
-@REM CALL :Start KGs/KINSHIP , Pykeen_DistMult
-@REM CALL :Start KGs/KINSHIP , Pykeen_ComplEx
-@REM CALL :Start KGs/KINSHIP , DistMult
-@REM CALL :Start KGs/KINSHIP , DistMult
+@REM CALL :StartPykeen KGs/UMLS , Pykeen_DistMult
+@REM CALL :StartPykeen KGs/UMLS , Pykeen_ComplEx
+CALL :StartDice KGs/UMLS , DistMult
+CALL :StartDice KGs/UMLS , ConEx
+@REM CALL :StartPykeen KGs/KINSHIP , Pykeen_DistMult
+@REM CALL :StartPykeen KGs/KINSHIP , Pykeen_ComplEx
+@REM CALL :StartDice KGs/KINSHIP , DistMult
+@REM CALL :StartDice KGs/KINSHIP , DistMult
 EXIT /B %ERRORLEVEL%
 
-:Start
+:StartPykeen
 python main.py --path_dataset_folder %~1 --model %~2 --num_epochs 250 --scoring_technique "NegSample" ^
---batch_size 1024 --lr 0.1 --embedding_dim 256 --trainer "PL" --neg_ratio 1 --pykeen_model_kwargs embedding_dim=64 loss="CrossEntropy" ^
---use_SLCWALitModule --save_embeddings_as_csv --eval_model "train_val_test" --num_core 1 --accelerator "gpu" --devices 1
+--batch_size 1024 --lr 0.1 --embedding_dim 256 --trainer "PL" --neg_ratio 1 --pykeen_model_kwargs embedding_dim=64 loss="BCEWithLogitsLoss" ^
+--use_SLCWALitModule --save_embeddings_as_csv --eval_model "train_val_test" --num_core 1 --accelerator "cpu" --devices 1
+
+:StartDice
+python main.py --path_dataset_folder %~1 --model %~2 --num_epochs 250 --scoring_technique "NegSample" ^
+--batch_size 1024 --lr 0.1 --embedding_dim 256 --trainer "PL" --neg_ratio 1 ^
+--save_embeddings_as_csv --eval_model "train_val_test" --num_core 1 --accelerator "cpu" --devices 1
+
 
 EXIT /B 0
 
