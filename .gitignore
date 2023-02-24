@@ -3,4 +3,5 @@ __pycache__/
 .pytest_cache/
 KGs/
 Experiments/
-.vscode/
+vscode/*
+wandb/*

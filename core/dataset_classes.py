@@ -373,6 +373,7 @@ class TriplePredictionDataset(torch.utils.data.Dataset):
     def __getitem__(self, idx):
         return self.train_set[idx]
 
+    # corrupt triples trainning part
     def collate_fn(self, batch: List[torch.Tensor]):
         batch = torch.stack(batch, dim=0)
         h, r, t = batch[:, 0], batch[:, 1], batch[:, 2]
@@ -382,7 +383,7 @@ class TriplePredictionDataset(torch.utils.data.Dataset):
 
         corr_entities = torch.randint(0, high=self.num_entities, size=(size_of_batch * self.neg_sample_ratio, ))
 
-        if torch.rand(1)>=0.5:
+        if torch.rand(1)>=0.5: # random 
             # corrupt head
             r_head_corr = r.repeat(self.neg_sample_ratio, )
             t_head_corr = t.repeat(self.neg_sample_ratio, )

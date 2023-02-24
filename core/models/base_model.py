@@ -24,7 +24,7 @@ class BaseKGE(pl.LightningModule):
         self.kernel_size = None
         self.num_of_output_channels = None
         self.weight_decay = None
-        self.loss = torch.nn.BCEWithLogitsLoss()
+        self.loss = torch.nn.BCEWithLogitsLoss() # loss function
         self.selected_optimizer = None
         self.normalizer_class = None
         self.normalize_head_entity_embeddings = IdentityClass()
@@ -32,6 +32,8 @@ class BaseKGE(pl.LightningModule):
         self.normalize_tail_entity_embeddings = IdentityClass()
         self.hidden_normalizer = IdentityClass()
         self.param_init = None
+
+        
         self.init_params_with_sanity_checking()
 
         # Dropouts
@@ -53,8 +55,9 @@ class BaseKGE(pl.LightningModule):
         return {'EstimatedSizeMB': (num_params + buffer_size) / 1024 ** 2, 'NumParam': num_params}
 
     def init_params_with_sanity_checking(self):
-        assert self.args['model'] in ['CLf', 'DistMult', 'ComplEx', 'QMult', 'OMult', 'ConvQ', 'ConvO',
-                                      'AConEx', 'ConEx', 'Shallom', 'TransE', 'Pyke']
+        if 'pykeen' not in self.args['model'].lower():
+            assert self.args['model'] in ['CLf', 'DistMult', 'ComplEx', 'QMult', 'OMult', 'ConvQ', 'ConvO',
+                                        'AConEx', 'ConEx', 'Shallom', 'TransE', 'Pyke']
         if self.args.get('weight_decay'):
             self.weight_decay = self.args['weight_decay']
         else:

@@ -37,9 +37,9 @@ class TestCallback:
     @pytest.mark.filterwarnings('ignore::UserWarning')
     def test_aconex_torchDDP_trainer(self):
         args = argparse_default([])
-        args.model = 'AConEx'
+        args.model = 'DistMult'
         args.scoring_technique = 'KvsAll'
-        args.path_dataset_folder = 'KGs/UMLS'
+        args.path_dataset_folder = 'KGs/Nations'
         args.num_epochs = 20
         args.batch_size = 32
         args.lr = 0.01
@@ -47,6 +47,7 @@ class TestCallback:
         args.trainer = 'torchDDP'
         args.num_core = 4 # need to be bigger than 0
         args.eval_model = 'train_val_test'
+        args.scoring_technique = "NegSample" 
         Execute(args).start()
 
 

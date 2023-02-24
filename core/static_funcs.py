@@ -390,7 +390,11 @@ def get_dataset_from_pykeen(model_name, dataset, path=None):
     validation_tf = TriplesFactory(dataset.valid_set,dataset.entity_to_idx,dataset.relation_to_idx,create_inverse_triples=use_inverse_triples,)
     
     dataset = EagerDataset(training_tf, testing_tf, validation_tf)
-
+    # train_path = path + "/train.txt"
+    # test_path = path + "/test.txt"
+    # valid_path = path + "/valid.txt"
+    # literal_path = path + "/literals.txt"
+    # return PathDataset(training_path=train_path,testing_path=test_path,validation_path=valid_path,create_inverse_triples=use_inverse_triples)
     return dataset
 
 
@@ -443,7 +447,7 @@ def get_pykeen_model(model_name, args, dataset):
         model = MySLCWALitModule(
             dataset=_dataset,
             model=passed_model,
-            # model_name=actual_name,
+            model_name=actual_name,
             model_kwargs=args["pykeen_model_kwargs"],
             learning_rate=args["lr"],
             optimizer=args["optim"],

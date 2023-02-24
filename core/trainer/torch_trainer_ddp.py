@@ -13,7 +13,7 @@ import sys
 from core.static_funcs_training import efficient_zero_grad
 import platform
 import GPUtil
-
+import pykeen
 
 # DDP with gradiant accumulation https://gist.github.com/mcarilli/bf013d2d2f4b4dd21ade30c9b52d5e2e
 
@@ -176,6 +176,14 @@ def distributed_training(
 
     # (1) Create DATA LOADER.
     # train_dataset_loader.sampler=torch.utils.data.distributed.DistributedSampler
+    
+    # collate_fn of the model of pykeen is None
+    collate_fn=None
+    if isinstance(model,pykeen.contrib.lightning.LitModule):
+        collate_fn = model.train_dataloaders.dataset.get_collator()
+    else:
+        collate_fn = train_dataset_loader.dataset.collate_fn
+
     train_dataset_loader = DataLoader(
         train_dataset_loader.dataset,
         batch_size=attrubutes.batch_size,
@@ -183,7 +191,7 @@ def distributed_training(
         shuffle=False,
         num_workers=attrubutes.num_core,
         persistent_workers=True,
-        collate_fn=train_dataset_loader.dataset.collate_fn,
+        collate_fn=collate_fn,
         sampler=torch.utils.data.distributed.DistributedSampler(
             train_dataset_loader.dataset
         ),

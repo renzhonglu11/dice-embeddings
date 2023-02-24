@@ -78,4 +78,7 @@ def argparse_default(description=None):
     return parser.parse_args(description)
 
 if __name__ == '__main__':
+    
     Execute(argparse_default()).start()
+    # import wandb
+    # wandb.finish()

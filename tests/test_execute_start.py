@@ -128,11 +128,11 @@ class TestDefaultParams:
 
     def test_distmult(self):
         args = argparse_default([])
-        args.model = 'ConEx'
+        args.model = 'DistMult'
         # args.num_epochs = 1
         args.scoring_technique = 'NegSample'
-        args.path_dataset_folder = 'KGs/Nations'
-        args.num_epochs = 1
+        args.path_dataset_folder = 'KGs/UMLS'
+        args.num_epochs = 50
         args.batch_size = 1024
         args.embedding_dim = 64
         args.lr = 0.01
@@ -143,12 +143,13 @@ class TestDefaultParams:
         args.sample_triples_ratio = None
         args.read_only_few = None
         args.num_folds_for_cv = None
-        # args.trainer = 'torchCPUTrainer'
-        args.trainer = 'PL'
+        args.trainer = 'torchCPUTrainer'
+        # args.trainer = 'PL'
         args.neg_ratio = 1
         args.eval_model = 'train_val_test'
-        args.num_core = 1
+        args.num_core = 0
         args.save_embeddings_as_csv = True
+        args.normalization = None
         Execute(args).start()
 
 

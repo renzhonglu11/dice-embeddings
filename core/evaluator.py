@@ -4,6 +4,7 @@ import json
 import sys
 from .static_funcs import timeit, pickle
 import pykeen
+import wandb
 
 class Evaluator:
     """
@@ -152,6 +153,7 @@ class Evaluator:
 
             res = self.evaluate_lp(trained_model, train_set,
                                    f'Evaluate {trained_model.name} on Train set')
+
             self.report['Train'] = res
         # 5. Test model on the validation and test dataset if it is needed.
         if 'val' in self.args.eval_model:
@@ -162,6 +164,7 @@ class Evaluator:
         if test_set is not None and 'test' in self.args.eval_model:
             self.report['Test'] = self.evaluate_lp(trained_model, test_set,
                                                    f'Evaluate {trained_model.name} of Test set')
+
 
     def eval_with_vs_all(self, *, train_set, valid_set=None, test_set=None, trained_model, form_of_labelling) -> None:
         """ Evaluate model after reciprocal triples are added """
@@ -184,6 +187,7 @@ class Evaluator:
                                             f'Evaluate {trained_model.name} on Test set',
                                             form_of_labelling=form_of_labelling)
             self.report['Test'] = res
+
 
     def evaluate_lp_k_vs_all(self, model, triple_idx, info=None, form_of_labelling=None):
         """

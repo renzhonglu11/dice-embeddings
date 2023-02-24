@@ -19,7 +19,7 @@ import copy
 from typing import List, Tuple
 from pykeen.contrib.lightning import LitModule
 import platform
-
+from pytorch_lightning.loggers import WandbLogger
 
 def initialize_trainer(args, callbacks):
     if args.trainer == "torchCPUTrainer":
@@ -39,6 +39,8 @@ def initialize_trainer(args, callbacks):
             backend = "gloo"
         else:
             backend = "nccl"
+        # wandb_logger = WandbLogger()
+        # args.logger = wandb_logger
         return pl.Trainer.from_argparse_args(
             args,
             strategy=DDPStrategy(
@@ -280,6 +282,7 @@ class DICE_Trainer:
             )
 
         if isinstance(model, LitModule):
+            # model.train_dataloaders.dataset.collate_fn = train_loader.dataset.collate_fn # ddp trainer needs this function
             self.trainer.fit(model,train_dataloaders=model.train_dataloaders)
             return model, form_of_labelling
 

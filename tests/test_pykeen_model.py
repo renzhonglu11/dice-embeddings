@@ -2,16 +2,16 @@ from main import argparse_default
 from core.executer import Execute
 import sys
 import pytest
-
+import wandb
 
 def template(model_name):
     args = argparse_default([])
     args.model = model_name
     args.scoring_technique = "NegSample"  # default value of args.eval is 'val_test'
     args.path_dataset_folder = "KGs/Nations"
-    args.num_epochs = 200
-    args.batch_size = 1024
-    args.lr = 0.01
+    args.num_epochs = 5
+    args.batch_size = 256
+    args.lr = 0.001
     args.embedding_dim = 64
     args.input_dropout_rate = 0.0
     args.hidden_dropout_rate = 0.0
@@ -19,8 +19,9 @@ def template(model_name):
     args.sample_triples_ratio = None
     args.read_only_few = None
     args.sample_triples_ratio = None
-    args.trainer = "PL"
+    # args.trainer = "PL"
     # args.trainer = "torchCPUTrainer"
+    args.trainer = "torchDDP"
     args.neg_ratio = 1
     args.pykeen_model_kwargs = dict(
         embedding_dim=args.embedding_dim, loss="BCEWithLogitsLoss"
@@ -33,6 +34,7 @@ def template(model_name):
     args.optim = 'Adam'
     args.accelerator = 'gpu'
     args.devices = 1
+    args.normalization = None
     return args
 
 
@@ -81,6 +83,12 @@ def template(model_name):
 )
 def test_fixedModel(model_name):
     args = template(model_name)
+    config = {
+        "epoch":args.num_epochs,"lr":args.lr,"embedding_dim":args.embedding_dim
+    }
+    dataset = args.path_dataset_folder.split('/')[1]
+    # wandb.setup(wandb.Settings(program="test_pykeen_model.py", program_relpath="test_pykeen_model.py"))
+    # wandb.init(project="dice_demo",config=config,name=f'{args.model}-{dataset}')
     Execute(args).start()
 
 

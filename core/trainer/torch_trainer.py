@@ -7,6 +7,7 @@ import time
 import os
 import psutil
 import pykeen
+import wandb
 
 class TorchTrainer(AbstractTrainer):
     """
@@ -39,7 +40,7 @@ class TorchTrainer(AbstractTrainer):
 
     def _run_batch(self, i: int, x_batch, y_batch) -> float:
         """
-            Forward anc Backward according to a mini-batch
+            Forward and Backward according to a mini-batch
 
             Arguments
            ----------
@@ -132,6 +133,9 @@ class TorchTrainer(AbstractTrainer):
             # (1)
             avg_epoch_loss = self._run_epoch(epoch)
             print(f"Epoch:{epoch + 1} | Loss:{avg_epoch_loss:.8f} | Runtime:{(time.time() - start_time) / 60:.3f}mins")
+            
+            # wandb.log({"avg_epoch_loss": avg_epoch_loss,"epoch": epoch})
+            
             # Autobatch Finder: Increase the batch size at each epoch's end if memory allows
             #             mem=self.process.memory_info().rss
             if increment_ratio>1:

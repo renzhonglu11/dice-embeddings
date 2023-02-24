@@ -63,12 +63,12 @@ class Pykeen_Module:
         if t_prediction:
             # torch.tensor(predictions_tails.df.score)
 
-            predictions_tails = predict.predict_target(model=self.model,head = x[0,0].item(),relation = x[0,1].item(),)
-            # for _ ,row in predictions_tails.df.iterrows():
-            #     lst[int(row['tail_id'])] = row['score']
+            predictions_tails = predict.predict_target(model=self.model,head = x[0,0].item(),relation = x[0,1].item(),targets=x[:,2])
+          
             _df = predictions_tails.df.sort_values(by=['tail_id'])
             return torch.tensor(_df.score,dtype=torch.float64)
-            # return lst
+            # tensor = self.model.score_t(x[:0,:1],tails = x[:2])
+            # return tensor
         if h_prediction:
             predictions_heads = predict.predict_target(model=self.model, relation = x[0,1].item(),tail=x[0,2].item(),targets=x[:,0])
             # for row in predictions_heads.df.iterrows():

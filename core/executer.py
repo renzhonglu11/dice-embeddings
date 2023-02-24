@@ -118,6 +118,12 @@ class Execute:
         A dict containing information about the training and/or evaluation
 
         """
+    #     config = {
+    #     "epoch":self.args.num_epochs,"lr":self.args.lr,"embedding_dim":self.args.embedding_dim,"optimizer":self.args.optim
+    # }
+    #     dataset = self.args.path_dataset_folder.split('/')[1]
+    #     wandb.init(project="dice_demo",config=config,name=f'{self.args.model}-{dataset}')
+
         start_time = time.time()
         print(f"Start time:{datetime.datetime.now()}")
         # (1) Loading the Data
@@ -153,6 +159,7 @@ class Execute:
             #     dataset = self.dataset
             self.evaluator.eval(dataset=self.dataset, trained_model=self.trained_model,
                                 form_of_labelling=form_of_labelling)
+
             return {**self.report, **self.evaluator.report}
 
 
