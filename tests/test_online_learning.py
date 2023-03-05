@@ -1,6 +1,5 @@
-from main import argparse_default as main_argparse_default
-from core.executer import Execute
-from core.knowledge_graph_embeddings import KGE
+from dicee.executer import Execute, get_default_arguments
+from dicee.knowledge_graph_embeddings import KGE
 import torch
 import pytest
 import argparse
@@ -10,7 +9,7 @@ import os
 class TestRegressionOnlineLearning:
     @pytest.mark.filterwarnings('ignore::UserWarning')
     def test_umls(self):
-        args = main_argparse_default([])
+        args = get_default_arguments([])
         args.model = 'AConEx'
         args.scoring_technique = 'KvsSample'
         args.optim = 'Adam'
@@ -30,7 +29,7 @@ class TestRegressionOnlineLearning:
         result = Execute(args).start()
         assert os.path.isdir(result['path_experiment_folder'])
         # Load the model
-        pre_trained_kge = KGE(path_of_pretrained_model_dir=result['path_experiment_folder'])
+        pre_trained_kge = KGE(path=result['path_experiment_folder'])
         # (1) Assume that acquired_abnormality,location_of,acquired_abnormality is a false triple
         first = pre_trained_kge.triple_score(head_entity=["acquired_abnormality"],
                                              relation=['location_of'],

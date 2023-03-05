@@ -1,13 +1,11 @@
-from main import argparse_default
-from core.executer import Execute
-import sys
+from dicee.executer import Execute, get_default_arguments
 import pytest
 
 
 class TestRegressionQmult:
     @pytest.mark.filterwarnings('ignore::UserWarning')
     def test_k_vs_all(self):
-        args = argparse_default([])
+        args = get_default_arguments([])
         args.model = 'QMult'
         args.path_dataset_folder = 'KGs/UMLS'
         args.optim = 'Adam'
@@ -36,7 +34,7 @@ class TestRegressionQmult:
 
     @pytest.mark.filterwarnings('ignore::UserWarning')
     def test_1_vs_all(self):
-        args = argparse_default([])
+        args = get_default_arguments([])
         args.model = 'QMult'
         args.optim = 'Adam'
         args.path_dataset_folder = 'KGs/UMLS'
@@ -53,6 +51,7 @@ class TestRegressionQmult:
         args.read_only_few = None
         args.trainer = 'torchCPUTrainer'
         args.init_param = 'xavier_normal'
+        args.normalization='LayerNorm'
         result = Execute(args).start()
         assert 0.92 >= result['Train']['H@1'] >= 0.83
         assert 0.82 >= result['Test']['H@1'] >= 0.75
@@ -64,7 +63,7 @@ class TestRegressionQmult:
 
     @pytest.mark.filterwarnings('ignore::UserWarning')
     def test_negative_sampling(self):
-        args = argparse_default([])
+        args = get_default_arguments([])
         args.model = 'QMult'
         args.optim = 'Adam'
         args.path_dataset_folder = 'KGs/UMLS'

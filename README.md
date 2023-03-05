@@ -4,7 +4,7 @@ Knowledge graph embedding research has mainly focused on learning continuous rep
 Recently developed frameworks can be effectively applied in a wide range of research-related applications.
 Yet, using these frameworks in real-world applications becomes more challenging as the size of the knowledge graph grows.
 
-We developed the DICE Embeddings framework to compute embeddings for large-scale knowledge graphs in a hardware-agnostic manner.
+We developed the DICE Embeddings framework (dicee) to compute embeddings for large-scale knowledge graphs in a hardware-agnostic manner.
 To achieve this goal, we rely on
 1. **[Pandas](https://pandas.pydata.org/) & Co.** to use parallelism at preprocessing a large knowledge graph,
 2. **[PyTorch](https://pytorch.org/) & Co.** to learn knowledge graph embeddings via multi-CPUs, GPUs, TPUs or computing cluster, and
@@ -27,26 +27,27 @@ With our framework, practitioners can directly use PytorchLightning for model pa
 **Why [Hugging-face Gradio](https://huggingface.co/gradio)?**
 Deploy a pre-trained embedding model without writing a single line of code.
 
+
 ## Installation
-Clone the repository:
+```
+pip install dicee
+```
+or
 ```
 git clone https://github.com/dice-group/dice-embeddings.git
-```
-To install dependencies:
-```
-# python=3.10 with torch cuda nncl https://discuss.pytorch.org/t/issues-on-using-nn-dataparallel-with-python-3-10-and-pytorch-1-11/146745/13
 conda create -n dice python=3.9.12
 conda activate dice
-# Choose a backend
 pip3 install pandas==1.5.1 
-pip3 install modin[ray]==0.16.2 
 pip3 install polars==0.15.13 
+pip3 install modin[ray]==0.16.2 
 pip3 install pyarrow==8.0.0
 pip3 install torch==1.13.0 
 pip3 install pytorch-lightning==1.6.4
 pip3 install scikit-learn==1.1.1
 pip3 install pytest==6.2.5
 pip3 install gradio==3.0.17
+pip install matplotlib==3.6.2
+
 ```
 To test the Installation
 ```
@@ -56,17 +57,32 @@ pytest -p no:warnings -x # it takes circa 15 minutes
 pytest -p no:warnings --lf # run only the last failed test
 pytest -p no:warnings --ff # to run the failures first and then the rest of the tests.
 ```
+To see the software architecture, execute the following command
+```
+pyreverse dicee/ && dot -Tpng -x classes.dot -o dice_software.png && eog dice_software.png
+```
+
+```
+pyreverse dicee/trainer && dot -Tpng -x classes.dot -o trainer.png && eog trainer.png
+```
 ## Applications
+### Description Logic Concept Learning (soon)
+```python
+from dicee import KGE
+# (1) Load a pretrained KGE model on KGs/Family
+pretrained_model = KGE(path='Experiments/2022-12-08 11:46:33.654677')
+pretrained_model.learn_concepts(pos={''},neg={''},topk=1)
+```
 ### Conjunctive Query/Question Answering
 ```python
-from core import KGE
+from dicee import KGE
 # (1) Load a pretrained KGE model on KGs/Family
-pre_trained_kge = KGE(path_of_pretrained_model_dir='Experiments/2022-12-08 11:46:33.654677')
+pretrained_model = KGE(path='Experiments/2022-12-08 11:46:33.654677')
 # (2) Answer the following conjunctive query question: To whom a sibling of F9M167 is married to?
 # (3) Decompose (2) into two query
 # (3.1) Who is a sibling of F9M167? => {F9F141,F9M157}
 # (3.2) To whom a results of (3.1) is married to ? {F9M142, F9F158}
-pre_trained_kge.predict_conjunctive_query(entity='<http://www.benchmark.org/family#F9M167>',
+pretrained_model.predict_conjunctive_query(entity='<http://www.benchmark.org/family#F9M167>',
                                           relations=['<http://www.benchmark.org/family#hasSibling>',
                                                      '<http://www.benchmark.org/family#married>'], topk=1)
 ```
@@ -77,9 +93,9 @@ pre_trained_kge.predict_conjunctive_query(entity='<http://www.benchmark.org/fami
 mkdir ConEx && cd ConEx && wget -r -nd -np https://hobbitdata.informatik.uni-leipzig.de/KGE/DBpedia/ConEx/ && cd ..
 ```
 ```python
-from core import KGE
+from dicee import KGE
 # (1) Load a pretrained ConEx on DBpedia 
-pre_trained_kge = KGE(path_of_pretrained_model_dir='ConEx')
+pre_trained_kge = KGE(path='ConEx')
 
 pre_trained_kge.triple_score(head_entity=["http://dbpedia.org/resource/Albert_Einstein"],relation=["http://dbpedia.org/ontology/birthPlace"],tail_entity=["http://dbpedia.org/resource/Ulm"]) # tensor([0.9309])
 pre_trained_kge.triple_score(head_entity=["http://dbpedia.org/resource/Albert_Einstein"],relation=["http://dbpedia.org/ontology/birthPlace"],tail_entity=["http://dbpedia.org/resource/German_Empire"]) # tensor([0.9981])
@@ -90,21 +106,21 @@ pre_trained_kge.triple_score(head_entity=["http://dbpedia.org/resource/Albert_Ei
 ```
 ### Relation Prediction
 ```python
-from core import KGE
-pre_trained_kge = KGE(path_of_pretrained_model_dir='ConEx')
+from dicee import KGE
+pre_trained_kge = KGE(path='ConEx')
 pre_trained_kge.predict_topk(head_entity=["http://dbpedia.org/resource/Albert_Einstein"],tail_entity=["http://dbpedia.org/resource/Ulm"])
 ```
 ### Entity Prediction
 ```python
-from core import KGE
-pre_trained_kge = KGE(path_of_pretrained_model_dir='ConEx')
+from dicee import KGE
+pre_trained_kge = KGE(path='ConEx')
 pre_trained_kge.predict_topk(head_entity=["http://dbpedia.org/resource/Albert_Einstein"],relation=["http://dbpedia.org/ontology/birthPlace"]) 
 pre_trained_kge.predict_topk(relation=["http://dbpedia.org/ontology/birthPlace"],tail_entity=["http://dbpedia.org/resource/Albert_Einstein"]) 
 ```
 ### Finding Missing Triples
 ```python
-from core import KGE
-pre_trained_kge = KGE(path_of_pretrained_model_dir='ConEx')
+from dicee import KGE
+pre_trained_kge = KGE(path='ConEx')
 missing_triples = pre_trained_kge.find_missing_triples(confidence=0.95, entities=[''], relations=[''])
 ```
 
@@ -124,7 +140,7 @@ Running on public URL: https://54886.gradio.app
 
 This share link expires in 72 hours. For free permanent hosting, check out Spaces (https://huggingface.co/spaces)
 ```
-![alt text](core/figures/deploy_qmult_family.png)
+![alt text](dicee/figures/deploy_qmult_family.png)
 ## Pre-trained Models
 Please contact:  ```caglar.demir@upb.de ``` or ```caglardemir8@gmail.com ``` , if you lack hardware resources to obtain embeddings of a specific knowledge Graph.
 - [DBpedia version: 06-2022 Embeddings](https://hobbitdata.informatik.uni-leipzig.de/KGE/DBpediaQMultEmbeddings_03_07):

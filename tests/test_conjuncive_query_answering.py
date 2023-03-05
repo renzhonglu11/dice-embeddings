@@ -1,8 +1,6 @@
-from continual_training import argparse_default as ct_argparse_default
-from main import argparse_default as main_argparse_default
-from core.executer import Execute, ContinuousExecute
-from core.knowledge_graph_embeddings import KGE
-from core.knowledge_graph import KG
+from dicee.executer import Execute, ContinuousExecute,get_default_arguments
+from dicee.knowledge_graph_embeddings import KGE
+from dicee.knowledge_graph import KG
 import pytest
 import argparse
 import os
@@ -11,7 +9,7 @@ import os
 class TestKGEInteractive:
     @pytest.mark.filterwarnings('ignore::UserWarning')
     def test_missing_triples_and_conjunctive_query_answering(self):
-        args = main_argparse_default([])
+        args = get_default_arguments([])
         args.model = 'AConEx'
         args.scoring_technique = 'KvsAll'
         args.optim = 'Adam'
@@ -28,11 +26,11 @@ class TestKGEInteractive:
         args.num_folds_for_cv = None
         result = Execute(args).start()
         assert os.path.isdir(result['path_experiment_folder'])
-        pre_trained_kge = KGE(path_of_pretrained_model_dir=result['path_experiment_folder'])
+        pre_trained_kge = KGE(path=result['path_experiment_folder'])
         m = pre_trained_kge.find_missing_triples(confidence=0.999, topk=1, at_most=10)  # tensor([0.9309])
         assert len(m) <= 10
         x = pre_trained_kge.predict_conjunctive_query(entity='alga',
                                                       relations=['isa',
                                                                  'causes'], topk=3)
 
-        assert len(x)>2
+        assert len(x) > 2

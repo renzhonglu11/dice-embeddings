@@ -1,15 +1,14 @@
-from main import argparse_default
-from core.executer import Execute
+from dicee.executer import Execute, get_default_arguments
 import sys
 import pytest
-from core import KGE
-from core.static_funcs import random_prediction
+from dicee import KGE
+from dicee.static_funcs import random_prediction
 
 
 class TestDefaultParams:
     @pytest.mark.filterwarnings('ignore::UserWarning')
     def test_qmult(self):
-        args = argparse_default([])
+        args = get_default_arguments([])
         args.model = 'QMult'
         args.optim = 'Adam'
         args.num_epochs = 1
@@ -30,5 +29,5 @@ class TestDefaultParams:
         executor = Execute(args)
         executor.start()
 
-        pre_trained_kge = KGE(path_of_pretrained_model_dir=executor.args.full_storage_path)
+        pre_trained_kge = KGE(path=executor.args.full_storage_path)
         random_prediction(pre_trained_kge)

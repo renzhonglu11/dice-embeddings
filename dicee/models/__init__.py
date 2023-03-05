@@ -6,3 +6,4 @@ from .octonion import *
 from .pykeen_LCWALitModule import *
 from .pykeen_SLCWALitModule import *
 from .octonion import *
+from .clifford import *

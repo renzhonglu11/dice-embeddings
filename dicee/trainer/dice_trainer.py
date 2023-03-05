@@ -2,10 +2,10 @@ import time
 import pytorch_lightning as pl
 import gc
 from typing import Union
-from core.models.base_model import BaseKGE
-from core.static_funcs import select_model
-from core.callbacks import *
-from core.dataset_classes import construct_dataset, reload_dataset
+from dicee.models.base_model import BaseKGE
+from dicee.static_funcs import select_model
+from dicee.callbacks import *
+from dicee.dataset_classes import construct_dataset, reload_dataset
 from .torch_trainer import TorchTrainer
 from .torch_trainer_ddp import TorchDDPTrainer
 from ..static_funcs import timeit
@@ -65,8 +65,10 @@ def get_callbacks(args):
         AccumulateEpochLossCallback(path=args.full_storage_path),
     ]
     for i in args.callbacks:
-        if "FPPE" in i:
-            if i == "FPPE":
+        if i=='PQS':
+            callbacks.append(PQS(path=args.full_storage_path))
+        elif 'FPPE' in i:
+            if i == 'FPPE':
                 callbacks.append(
                     FPPE(
                         num_epochs=args.num_epochs,
@@ -146,6 +148,7 @@ class DICE_Trainer:
         self.storage_path = storage_path
         # Required for CV.
         self.evaluator = evaluator
+        self.form_of_labelling=None
         print(
             f"# of CPUs:{os.cpu_count()} | # of GPUs:{torch.cuda.device_count()} | # of CPUs for dataloader:{self.args.num_core}"
         )
@@ -247,7 +250,6 @@ class DICE_Trainer:
         if self.args.eval_model is None:
             del dataset.train_set
             gc.collect()
-
         # pickle.PicklingError: memo id too large for LONG_BINPUT
         # torch.save(train_loader, self.storage_path + '/TrainDataloader.pth')
         # @TODO: SaveDataset
@@ -264,26 +266,16 @@ class DICE_Trainer:
             return self.k_fold_cross_validation(dataset)
         else:
             self.trainer: Union[TorchTrainer, TorchDDPTrainer, pl.Trainer]
-            self.trainer = self.initialize_trainer(
-                callbacks=get_callbacks(self.args), plugins=[]
-            )
-            if "pykeen" in self.args.model.lower():
-                model, form_of_labelling = self.initialize_or_load_model(dataset)
-            else:
-                model, form_of_labelling = self.initialize_or_load_model()
-            assert self.args.scoring_technique in [
-                "KvsSample",
-                "1vsAll",
-                "KvsAll",
-                "NegSample",
-            ]
-            train_loader = self.initialize_dataloader(
-                self.initialize_dataset(dataset, form_of_labelling)
-            )
+            self.trainer = self.initialize_trainer(callbacks=get_callbacks(self.args), plugins=[])
+            model, form_of_labelling = self.initialize_or_load_model()
+            assert self.args.scoring_technique in ['KvsSample', '1vsAll', 'KvsAll', 'NegSample']
 
-        if isinstance(model, LitModule):
-            # model.train_dataloaders.dataset.collate_fn = train_loader.dataset.collate_fn # ddp trainer needs this function
-            self.trainer.fit(model,train_dataloaders=model.train_dataloaders)
+
+            self.trainer.evaluator=self.evaluator
+            self.trainer.dataset = dataset
+            self.trainer.form_of_labelling = form_of_labelling
+
+            self.trainer.fit(model, train_dataloaders=self.initialize_dataloader(self.initialize_dataset(dataset, form_of_labelling)))
             return model, form_of_labelling
 
         # hyparameter tune by ray
@@ -372,13 +364,14 @@ class DICE_Trainer:
         :param dataset:
         :return: model
         """
-        print(f"{self.args.num_folds_for_cv}-fold cross-validation")
+        print(f'{self.args.num_folds_for_cv}-fold cross-validation')
+        # (1) Create Kfold data
         kf = KFold(n_splits=self.args.num_folds_for_cv, shuffle=True, random_state=1)
         model = None
         eval_folds = []
-
+        # (2) Iterate over (1)
         for (ith, (train_index, test_index)) in enumerate(kf.split(dataset.train_set)):
-            # Need to create a new copy for the callbacks
+            # (2.1) Create a new copy for the callbacks
             args = copy.copy(self.args)
             trainer = initialize_trainer(args, get_callbacks(args))
             model, form_of_labelling = select_model(

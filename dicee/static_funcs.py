@@ -530,10 +530,13 @@ def intialize_model(args: dict, dataset=None) -> Tuple[pl.LightningModule, AnySt
         form_of_labelling = "EntityPrediction"
     elif model_name == "Pyke":
         model = Pyke(args=args)
-        form_of_labelling = "Pyke"
-    elif model_name == "CLf":
-        model = CLf(args=args)
-        form_of_labelling = "EntityPrediction"
+        form_of_labelling = 'Pyke'
+    elif model_name == 'Keci':
+        model = Keci(args=args)
+        form_of_labelling = 'EntityPrediction'
+    elif model_name == 'CMult':
+        model = CMult(args=args)
+        form_of_labelling = 'EntityPrediction'
     # elif for PYKEEN https://github.com/dice-group/dice-embeddings/issues/54
     else:
         raise ValueError

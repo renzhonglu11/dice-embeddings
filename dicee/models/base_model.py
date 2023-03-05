@@ -5,7 +5,7 @@ from torch.nn import functional as F
 from torchmetrics import Accuracy as accuracy
 from typing import List, Any, Tuple, Union, Dict
 import numpy as np
-from core.custom_opt import Sls, AdamSLS, Adan
+#from dicee.custom_opt import Sls, AdamSLS, Adan
 
 
 class BaseKGE(pl.LightningModule):
@@ -135,6 +135,7 @@ class BaseKGE(pl.LightningModule):
             raise KeyError(f'--init_param (***{self.args.get("init_param")}***) not found')
 
     def get_embeddings(self) -> Tuple[np.ndarray, np.ndarray]:
+        # @TODO why twice data.data.?
         return self.entity_embeddings.weight.data.data.detach(), self.relation_embeddings.weight.data.detach()
 
     def configure_optimizers(self, parameters=None):

@@ -1,8 +1,8 @@
 import torch
 from typing import Tuple
-from core.abstracts import AbstractTrainer
-from core.custom_opt.sls import Sls
-from core.custom_opt.adam_sls import AdamSLS
+from dicee.abstracts import AbstractTrainer
+#from dicee.custom_opt.sls import Sls
+#from dicee.custom_opt.adam_sls import AdamSLS
 import time
 import os
 import psutil
@@ -31,8 +31,8 @@ class TorchTrainer(AbstractTrainer):
         self.train_dataloaders = None
         torch.manual_seed(self.attributes.seed_for_computation)
         torch.cuda.manual_seed_all(self.attributes.seed_for_computation)
-        if self.attributes.gpus:
-            self.device = torch.device('cuda' if torch.cuda.is_available() else 'cpu')
+        if self.attributes.gpus and torch.cuda.is_available():
+            self.device = torch.device(f'cuda:{self.attributes.gpus}' if torch.cuda.is_available() else 'cpu')
         else:
             self.device = 'cpu'
         # https://psutil.readthedocs.io/en/latest/#psutil.Process
@@ -119,18 +119,17 @@ class TorchTrainer(AbstractTrainer):
         # (1) Start running callbacks
         self.on_fit_start(self, self.model)
 
-        if isinstance(self.optimizer, Sls) or isinstance(self.optimizer, AdamSLS):
-            self.use_closure = True
-        else:
-            self.use_closure = False
+        #if isinstance(self.optimizer, Sls) or isinstance(self.optimizer, AdamSLS):
+        #    self.use_closure = True
+        #else:
+        self.use_closure = False
 
         print(
             f'NumOfDataPoints:{len(self.train_dataloaders.dataset)} | NumOfEpochs:{self.attributes.max_epochs} | LearningRate:{self.model.learning_rate} | BatchSize:{self.train_dataloaders.batch_size} | EpochBatchsize:{len(train_dataloaders)}')
-
-        increment_ratio=0
+        counter = 0
         for epoch in range(self.attributes.max_epochs):
             start_time = time.time()
-            # (1)
+
             avg_epoch_loss = self._run_epoch(epoch)
             print(f"Epoch:{epoch + 1} | Loss:{avg_epoch_loss:.8f} | Runtime:{(time.time() - start_time) / 60:.3f}mins")
             
@@ -138,13 +137,19 @@ class TorchTrainer(AbstractTrainer):
             
             # Autobatch Finder: Increase the batch size at each epoch's end if memory allows
             #             mem=self.process.memory_info().rss
-            if increment_ratio>1:
+            
+            
+            # Autobatch Finder: Double the current batch size if memory allows and repeat this process at mast 5 times.
+            if self.attributes.auto_batch_finder and psutil.virtual_memory().percent < 30.0 and counter < 5:
                 self.train_dataloaders = torch.utils.data.DataLoader(dataset=self.train_dataloaders.dataset,
-                                                                     batch_size=self.train_dataloaders.batch_size +self.train_dataloaders.batch_size,
+                                                                     batch_size=self.train_dataloaders.batch_size + self.train_dataloaders.batch_size,
                                                                      shuffle=True,
                                                                      collate_fn=self.train_dataloaders.dataset.collate_fn,
                                                                      num_workers=self.train_dataloaders.num_workers,
                                                                      persistent_workers=False)
+                print(
+                    f'NumOfDataPoints:{len(self.train_dataloaders.dataset)} | NumOfEpochs:{self.attributes.max_epochs} | LearningRate:{self.model.learning_rate} | BatchSize:{self.train_dataloaders.batch_size} | EpochBatchsize:{len(train_dataloaders)}')
+                counter += 1
 
             self.model.loss_history.append(avg_epoch_loss)
             self.on_train_epoch_end(self, self.model)

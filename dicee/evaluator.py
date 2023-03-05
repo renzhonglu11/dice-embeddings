@@ -25,6 +25,7 @@ class Evaluator:
         self.domain_constraints_per_rel, self.range_constraints_per_rel = None, None
         self.args = args
         self.report = dict()
+        self.during_training = False
 
     def vocab_preparation(self, dataset) -> None:
         """
@@ -37,7 +38,7 @@ class Evaluator:
         ----------
         None
         """
-        print("** VOCAB Prep **")
+        # print("** VOCAB Prep **")
         if isinstance(dataset.er_vocab, dict):
             self.er_vocab = dataset.er_vocab
         else:
@@ -69,8 +70,9 @@ class Evaluator:
         pickle.dump(self.re_vocab, open(self.args.full_storage_path + "/re_vocab.p", "wb"))
         pickle.dump(self.ee_vocab, open(self.args.full_storage_path + "/ee_vocab.p", "wb"))
 
-    @timeit
-    def eval(self, dataset, trained_model, form_of_labelling) -> None:
+    # @timeit
+    def eval(self, dataset, trained_model, form_of_labelling, during_training=False) -> None:
+        self.during_training = during_training
         # (1) Exit, if the flag is not set
         if self.args.eval_model is None:
             return
@@ -85,7 +87,7 @@ class Evaluator:
             valid_set = trained_model.dataset.validation.mapped_triples
             test_set = trained_model.dataset.testing.mapped_triples
         self.vocab_preparation(dataset)
-        print('Evaluation Starts.')
+        # print('Evaluation Starts.')
         if self.args.num_folds_for_cv > 1:
             # the evaluation must have done in the training part
             return
@@ -106,10 +108,12 @@ class Evaluator:
                                   form_of_labelling=form_of_labelling)
         else:
             raise ValueError(f'Invalid argument: {self.args.scoring_technique}')
-        with open(self.args.full_storage_path + '/eval_report.json', 'w') as file_descriptor:
-            json.dump(self.report, file_descriptor, indent=4)
+        if self.during_training is False:
+            with open(self.args.full_storage_path + '/eval_report.json', 'w') as file_descriptor:
+                json.dump(self.report, file_descriptor, indent=4)
+        return {k: v for k, v in self.report.items()}
 
-    def dummy_eval(self, trained_model,form_of_labelling):
+    def dummy_eval(self, trained_model, form_of_labelling):
 
         if self.is_continual_training:
             self.er_vocab = pickle.load(open(self.args.full_storage_path + "/er_vocab.p", "rb"))
@@ -117,9 +121,9 @@ class Evaluator:
             self.ee_vocab = pickle.load(open(self.args.full_storage_path + "/ee_vocab.p", "rb"))
 
         if 'train' in self.args.eval_model:
-            train_set=np.load(self.args.full_storage_path + "/train_set.npy")
+            train_set = np.load(self.args.full_storage_path + "/train_set.npy")
         else:
-            train_set=None
+            train_set = None
         if 'val' in self.args.eval_model:
             valid_set = np.load(self.args.full_storage_path + "/valid_set.npy")
         else:
@@ -205,7 +209,7 @@ class Evaluator:
         # Hit range
         hits_range = [i for i in range(1, 11)]
         hits = {i: [] for i in hits_range}
-        if info:
+        if info and self.during_training is False:
             print(info + ':', end=' ')
         if form_of_labelling == 'RelationPrediction':
             # Iterate over integer indexed triples in mini batch fashion
@@ -273,7 +277,7 @@ class Evaluator:
         mean_reciprocal_rank = np.mean(1. / np.array(ranks))
 
         results = {'H@1': hit_1, 'H@3': hit_3, 'H@10': hit_10, 'MRR': mean_reciprocal_rank}
-        if info:
+        if info and self.during_training is False:
             print(info)
             print(results)
         return results
@@ -309,9 +313,14 @@ class Evaluator:
 
         # Iterating one by one is not good when you are using batch norm
         for i in range(0, len(triple_idx)):
-            # 1. Get a triple
+            # (1) Get a triple (head entity, relation, tail entity
             data_point = triple_idx[i]
-            s, p, o = data_point[0], data_point[1], data_point[2]
+            h, r, t = data_point[0], data_point[1], data_point[2]
+
+            # (2) Predict missing heads and tails
+            x = torch.stack((torch.tensor(h).repeat(self.num_entities, ),
+                             torch.tensor(r).repeat(self.num_entities, ),
+                             all_entities), dim=1)
 
             # 2. Predict missing heads and tails
             x = torch.stack((torch.tensor(s).repeat(self.num_entities, ),
@@ -325,8 +334,8 @@ class Evaluator:
                 predictions_tails = model.forward_triples(x)
             
             x = torch.stack((all_entities,
-                             torch.tensor(p).repeat(self.num_entities, ),
-                             torch.tensor(o).repeat(self.num_entities)
+                             torch.tensor(r).repeat(self.num_entities, ),
+                             torch.tensor(t).repeat(self.num_entities)
                              ), dim=1)
             if isinstance(model,pykeen.contrib.lightning.LitModule):
                 predictions_heads = model.forward_triples(x,h_prediction=True,t_prediction=False)
@@ -337,40 +346,36 @@ class Evaluator:
 
             # 3. Computed filtered ranks for missing tail entities.
             # 3.1. Compute filtered tail entity rankings
-            filt_tails = self.er_vocab[(s, p)]
+            filt_tails = self.er_vocab[(h, r)]
             # 3.2 Get the predicted target's score
-            target_value = predictions_tails[o].item()
+            target_value = predictions_tails[t].item()
             # 3.3 Filter scores of all triples containing filtered tail entities
             predictions_tails[filt_tails] = -np.Inf
             # 3.3.1 Filter entities outside of the range
             if 'constraint' in self.args.eval_model:
-                predictions_tails[self.range_constraints_per_rel[p]] = -np.Inf
+                predictions_tails[self.range_constraints_per_rel[r]] = -np.Inf
             # 3.4 Reset the target's score
-            predictions_tails[o] = target_value
+            predictions_tails[t] = target_value
             # 3.5. Sort the score
             _, sort_idxs = torch.sort(predictions_tails, descending=True)
-            # sort_idxs = sort_idxs.cpu().numpy()
-            sort_idxs = sort_idxs.detach()  # cpu().numpy()
-            filt_tail_entity_rank = np.where(sort_idxs == o)[0][0]
+            sort_idxs = sort_idxs.detach()
+            filt_tail_entity_rank = np.where(sort_idxs == t)[0][0]
 
             # 4. Computed filtered ranks for missing head entities.
             # 4.1. Retrieve head entities to be filtered
-            filt_heads = self.re_vocab[(p, o)]
-            # filt_heads = data[(data['relation'] == p) & (data['object'] == o)]['subject'].values
+            filt_heads = self.re_vocab[(r, t)]
             # 4.2 Get the predicted target's score
-            target_value = predictions_heads[s].item()
+            target_value = predictions_heads[h].item()
             # 4.3 Filter scores of all triples containing filtered head entities.
             predictions_heads[filt_heads] = -np.Inf
             if isinstance(self.args.eval_model, bool) is False:
                 if 'constraint' in self.args.eval_model:
                     # 4.3.1 Filter entities that are outside the domain
-                    predictions_heads[self.domain_constraints_per_rel[p]] = -np.Inf
-            predictions_heads[s] = target_value
+                    predictions_heads[self.domain_constraints_per_rel[r]] = -np.Inf
+            predictions_heads[h] = target_value
             _, sort_idxs = torch.sort(predictions_heads, descending=True)
-            # sort_idxs = sort_idxs.cpu().numpy()
-            sort_idxs = sort_idxs.detach()  # cpu().numpy()
-            
-            filt_head_entity_rank = np.where(sort_idxs == s)[0][0]
+            sort_idxs = sort_idxs.detach()
+            filt_head_entity_rank = np.where(sort_idxs == h)[0][0]
 
             # 4. Add 1 to ranks as numpy array first item has the index of 0.
             filt_head_entity_rank += 1

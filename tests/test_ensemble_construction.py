@@ -1,17 +1,13 @@
-from continual_training import argparse_default as ct_argparse_default
-from main import argparse_default as main_argparse_default
-from core.executer import Execute, ContinuousExecute
-from core.knowledge_graph_embeddings import KGE
-from core.knowledge_graph import KG
+from dicee.executer import Execute, ContinuousExecute, get_default_arguments
+from dicee.knowledge_graph_embeddings import KGE
 import pytest
-import argparse
 import os
 
 
 class TestEnsembleConstruction:
     @pytest.mark.filterwarnings('ignore::UserWarning')
     def test_k_vs_all(self):
-        args = main_argparse_default([])
+        args = get_default_arguments([])
         args.model = 'QMult'
         args.scoring_technique = 'KvsAll'
         args.optim = 'Adam'
@@ -38,5 +34,5 @@ class TestEnsembleConstruction:
         assert os.path.isdir(result['path_experiment_folder'])
 
         # (1) Load single model
-        pre_trained_kge = KGE(path_of_pretrained_model_dir=result['path_experiment_folder'])
-        pre_trained_kge = KGE(path_of_pretrained_model_dir=result['path_experiment_folder'], construct_ensemble=True)
+        pre_trained_kge = KGE(path=result['path_experiment_folder'])
+        pre_trained_kge = KGE(path=result['path_experiment_folder'], construct_ensemble=True)

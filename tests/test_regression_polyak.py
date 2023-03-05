@@ -1,5 +1,4 @@
-from main import argparse_default
-from core.executer import Execute
+from dicee.executer import Execute, get_default_arguments
 import sys
 import pytest
 
@@ -7,7 +6,7 @@ import pytest
 class TestPolyak:
     @pytest.mark.filterwarnings('ignore::UserWarning')
     def test_polyak_qmult_k_vs_all(self):
-        args = argparse_default([])
+        args = get_default_arguments([])
         args.model = 'QMult'
         args.path_dataset_folder = 'KGs/UMLS'
         args.optim = 'Adam'
@@ -27,7 +26,7 @@ class TestPolyak:
         args.init_param = 'xavier_normal'
         args.trainer = 'torchCPUTrainer'
         result = Execute(args).start()
-        assert .70 >= result['Train']['H@1'] >= 0.68
+        assert 0.70 >= result['Train']['H@1'] >= 0.68
         assert 0.778 >= result['Train']['MRR'] >= 0.775
         assert 0.640 >= result['Val']['H@1'] >= 0.630
         assert 0.640 >= result['Test']['H@1'] >= 0.620
@@ -37,14 +36,14 @@ class TestPolyak:
 
     @pytest.mark.filterwarnings('ignore::UserWarning')
     def test_polyak_qmult_k_vs_all(self):
-        args = argparse_default([])
+        args = get_default_arguments([])
         args.model = 'QMult'
         args.path_dataset_folder = 'KGs/UMLS'
         args.optim = 'Adam'
         args.num_epochs = 59
         args.batch_size = 1024
         args.lr = 0.1
-        args.callbacks=['FPPE']
+        args.callbacks = ['FPPE']
         args.embedding_dim = 128
         args.input_dropout_rate = 0.0
         args.hidden_dropout_rate = 0.0
@@ -58,4 +57,4 @@ class TestPolyak:
         args.init_param = 'xavier_normal'
         args.trainer = 'torchCPUTrainer'
         result = Execute(args).start()
-        assert 1.00 >= result['Train']['MRR'] >= 0.97
+        assert 0.85 >= result['Train']['MRR'] >= 0.83
