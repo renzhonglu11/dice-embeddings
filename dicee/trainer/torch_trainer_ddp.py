@@ -12,7 +12,6 @@ from dicee.static_funcs_training import efficient_zero_grad
 from torch.utils.data import Dataset, DataLoader
 import pandas as pd
 import sys
-from core.static_funcs_training import efficient_zero_grad
 import platform
 import GPUtil
 import pykeen

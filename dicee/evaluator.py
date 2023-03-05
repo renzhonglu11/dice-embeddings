@@ -322,11 +322,6 @@ class Evaluator:
                              torch.tensor(r).repeat(self.num_entities, ),
                              all_entities), dim=1)
 
-            # 2. Predict missing heads and tails
-            x = torch.stack((torch.tensor(s).repeat(self.num_entities, ),
-                             torch.tensor(p).repeat(self.num_entities, ),
-                             all_entities
-                             ), dim=1)
             # @TODO: need to take a deep dive into forwar_triples method
             if isinstance(model,pykeen.contrib.lightning.LitModule):
                 predictions_tails = model.forward_triples(x,h_prediction=False,t_prediction=True)
