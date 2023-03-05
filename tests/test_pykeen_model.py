@@ -11,7 +11,7 @@ def template(model_name):
     args.path_dataset_folder = "KGs/Nations"
     args.num_epochs = 5
     args.batch_size = 256
-    args.lr = 0.001
+    args.lr = 0.01
     args.embedding_dim = 64
     args.input_dropout_rate = 0.0
     args.hidden_dropout_rate = 0.0
@@ -20,8 +20,8 @@ def template(model_name):
     args.read_only_few = None
     args.sample_triples_ratio = None
     # args.trainer = "PL"
-    # args.trainer = "torchCPUTrainer"
-    args.trainer = "torchDDP"
+    args.trainer = "torchCPUTrainer"
+    # args.trainer = "torchDDP"
     args.neg_ratio = 1
     args.pykeen_model_kwargs = dict(
         embedding_dim=args.embedding_dim, loss="BCEWithLogitsLoss"

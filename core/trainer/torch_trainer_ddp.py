@@ -65,7 +65,7 @@ class TorchDDPTrainer(AbstractTrainer):
         world_size = self.attributes.num_nodes * torch.cuda.device_count()
 
         # @TODO auto batch size implementation
-        oom = True
+        oom = False
         batch_size = self.attributes.batch_size  # batch size to increase
         initial_num_epochs = self.attributes.num_epochs
         num_of_tries = 1
@@ -76,7 +76,7 @@ class TorchDDPTrainer(AbstractTrainer):
         
         size_of_train_data = len(kwargs["train_dataloaders"].dataset)
 
-        while oom:
+        while not oom:
             try:
                 if (
                     num_of_tries == initial_num_epochs
@@ -84,7 +84,8 @@ class TorchDDPTrainer(AbstractTrainer):
                 ):
                     # no rest of epochs are left to test the batch_size or
                     # bacth_size is already bigger than train dataset 
-                    oom = False
+                    # oom = False
+                    break
 
                 self.attributes.num_epochs = 1  # only run one epoch
                 mp.spawn(
@@ -105,16 +106,70 @@ class TorchDDPTrainer(AbstractTrainer):
                 os.remove("model.pt")
                 self.attributes.batch_size += batch_size  # increase the batch size
                 num_of_tries += 1
-            except RuntimeError:
-                # the batch_size here can be sure to fit in the memory of GPU
-                # @TODO: there may be another method to find the batach size after oom
-                self.attributes.batch_size += (
-                    -batch_size
-                )  # reset the batch size to the last add
-                self.attributes = (
+            # except RuntimeError:
+            except Exception:
+                oom = True
+
+        # the batch_size here can be sure to fit in the memory of GPU
+            # @TODO: there may be another method to find the batach size after oom
+        if num_of_tries == 1:
+            raise ValueError(f'batch_size of {self.attributes.batch_size} is too large. Set smaller batch_size!')
+
+
+        
+        r = self.attributes.batch_size
+        self.attributes.batch_size += (
+                -batch_size
+            )  # reset the batch size to the last add
+        l = self.attributes.batch_size
+        # r = self.attributes.batch_size
+        final_batch = l
+        flag = True
+        
+
+        while l < r and  num_of_tries != initial_num_epochs and self.attributes.batch_size < size_of_train_data and l+1!=r:
+            #     if (
+            #     num_of_tries == initial_num_epochs
+            #     or self.attributes.batch_size > size_of_train_data
+            # ):
+            #     # no rest of epochs are left to test the batch_size or
+            #     # bacth_size is already bigger than train dataset 
+            #         flag = False
+            
+            try:
+                mid = (l+r)//2
+                self.attributes.batch_size = mid  # increase the batch size
+                self.attributes.num_epochs = 1  # only run one epoch
+                mp.spawn(
+                    fn=distributed_training,
+                                args=(
+                                    world_size,
+                                    model,
+                                    kwargs["train_dataloaders"],
+                                    self.callbacks,
+                                    self.attributes,
+                                ),
+                                nprocs=world_size,
+                                join=True,
+                            )
+                model.load_state_dict(
+                torch.load("model.pt", map_location=torch.device("cpu"))
+                            )
+                os.remove("model.pt")
+                    
+                num_of_tries += 1
+                l = mid 
+                final_batch = mid # find the current available batch_size, stop binary search
+
+            except Exception:
+                r = mid
+        
+        # the following training will use the final_batch_size
+        self.attributes.batch_size = final_batch -1
+        self.attributes.num_epochs = (
                     initial_num_epochs - num_of_tries
                 )  # run the rest epochs
-                mp.spawn(
+        mp.spawn(
                     fn=distributed_training,
                     args=(
                         world_size,
@@ -126,14 +181,17 @@ class TorchDDPTrainer(AbstractTrainer):
                     nprocs=world_size,
                     join=True,
                 )
-                model.load_state_dict(
+        model.load_state_dict(
                     torch.load("model.pt", map_location=torch.device("cpu"))
                 )
-                os.remove("model.pt")
-                oom = False
+        os.remove("model.pt")
 
         self.on_fit_end(self, model)
 
+
+            
+
+    
 
 def distributed_training(
     rank: int, world_size, model, train_dataset_loader, callbacks,  attrubutes
@@ -157,8 +215,8 @@ def distributed_training(
 
     # for test purpose(not sure if this simulation is correct???)
     # GPU memory managed by the caching allocator can now only allocate 0.01*total_memory memory
-    # torch.cuda.set_per_process_memory_fraction(0.01)
-
+    torch.cuda.set_per_process_memory_fraction(0.007)
+    
     dist.init_process_group(backend=backend, rank=rank, world_size=world_size)
 
     # train_dataset_loader = DataLoader(
@@ -236,6 +294,14 @@ class Trainer:
         self.model = DDP(model, device_ids=[gpu_id])
         self.num_epochs = num_epochs
         print_peak_memory("Max memory allocated after creating DDP:", gpu_id)
+
+        # Get the total amount of memory on the GPU
+        total_memory = torch.cuda.get_device_properties(gpu_id).total_memory
+        # Calculate the amount of free memory in MiB
+        free_memory = (total_memory) / (1024 * 1024)
+        print(f"Free memory: {free_memory:.2f} MiB")
+
+
         # print('GPU:{self.gpu_id')
         print(f"GPU:{torch.cuda.current_device()}")
         print(self.model)
