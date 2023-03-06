@@ -267,23 +267,32 @@ class DICE_Trainer:
         else:
             self.trainer: Union[TorchTrainer, TorchDDPTrainer, pl.Trainer]
             self.trainer = self.initialize_trainer(callbacks=get_callbacks(self.args), plugins=[])
-            model, form_of_labelling = self.initialize_or_load_model()
+            if "pykeen" in self.args.model.lower():
+                model, form_of_labelling = self.initialize_or_load_model(dataset)
+            else:
+                model, form_of_labelling = self.initialize_or_load_model()
             assert self.args.scoring_technique in ['KvsSample', '1vsAll', 'KvsAll', 'NegSample']
 
 
             self.trainer.evaluator=self.evaluator
             self.trainer.dataset = dataset
             self.trainer.form_of_labelling = form_of_labelling
-
+            
+            if isinstance(model, LitModule):
+                # model.train_dataloaders.dataset.collate_fn = train_loader.dataset.collate_fn # ddp trainer needs this function
+                self.trainer.fit(model,train_dataloaders=model.train_dataloaders)
+                return model, form_of_labelling           
+            
             self.trainer.fit(model, train_dataloaders=self.initialize_dataloader(self.initialize_dataset(dataset, form_of_labelling)))
+            
             return model, form_of_labelling
+
+
+
 
         # hyparameter tune by ray
         # self.tune_mnist_asha(data_loader = train_loader)
 
-        self.trainer.fit(model, train_dataloaders=train_loader)
-
-        return model, form_of_labelling
 
     # def train_mnist_tune(self,config, num_epochs=10, num_gpus=0, data_loader = None):
     #     from pytorch_lightning.loggers import TensorBoardLogger

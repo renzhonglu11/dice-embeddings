@@ -1,11 +1,10 @@
-from main import argparse_default
-from core.executer import Execute
+from dicee.executer import Execute,get_default_arguments
 import sys
 import pytest
 import wandb
 
 def template(model_name):
-    args = argparse_default([])
+    args = get_default_arguments([])
     args.model = model_name
     args.scoring_technique = "NegSample"  # default value of args.eval is 'val_test'
     args.path_dataset_folder = "KGs/Nations"
@@ -117,7 +116,7 @@ def test_pykeenInteraction(model_name):
 class TestPykeen:
     @pytest.mark.filterwarnings("ignore::UserWarning")
     def test_specific_model(self):
-        args = argparse_default([])
+        args = get_default_arguments([])
         args.model = "Pykeen_LineaREInteraction"
         args.scoring_technique = "NegSample"
         args.path_dataset_folder = "KGs/Nations"

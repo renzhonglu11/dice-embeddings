@@ -16,7 +16,7 @@ class ParseDict(argparse.Action):
             getattr(namespace, self.dest)[key] = value
 
 
-def argparse_default(description=None):
+def get_default_arguments(description=None):
     """ Extends pytorch_lightning Trainer's arguments with ours """
     parser = pl.Trainer.add_argparse_args(argparse.ArgumentParser(add_help=False))
     # Default Trainer param https://pytorch-lightning.readthedocs.io/en/stable/common/trainer.html#methods
@@ -90,6 +90,6 @@ def argparse_default(description=None):
 
 if __name__ == '__main__':
     
-    Execute(argparse_default()).start()
+    Execute(get_default_arguments()).start()
     # import wandb
     # wandb.finish()
