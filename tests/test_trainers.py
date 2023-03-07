@@ -40,10 +40,10 @@ class TestCallback:
         # args.model = 'Pykeen_DistMult'
         args.scoring_technique = 'KvsAll'
         args.path_dataset_folder = 'KGs/KINSHIP'
-        args.num_epochs = 30
-        args.batch_size =5
+        args.num_epochs = 10
+        args.batch_size =32
         args.lr = 0.01
-        args.embedding_dim = 32
+        args.embedding_dim = 64
         args.trainer = 'torchDDP'
         args.num_core = 1 # need to be bigger than 0
         args.eval_model = 'train_val_test'
@@ -54,7 +54,6 @@ class TestCallback:
         args.optim = 'Adam'
         args.pykeen_model_kwargs = dict(
         embedding_dim=args.embedding_dim, loss="BCEWithLogitsLoss")
-        args.use_SLCWALitModule = False
         torch.cuda.empty_cache()
         Execute(args).start()
 

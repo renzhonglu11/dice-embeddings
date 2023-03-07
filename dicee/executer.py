@@ -269,6 +269,16 @@ class ContinuousExecute(Execute):
             self.evaluator.dummy_eval(self.trained_model, form_of_labelling)
             return {**self.report, **self.evaluator.report}
 
+class ParseDict(argparse.Action):
+    def __call__(self, parser, namespace, values, option_string=None):
+        setattr(namespace, self.dest, dict()) # set each name of the attribute to hold the created object(s) as dictionary
+        for value in values:
+            key, value = value.split('=')
+            if value.isdigit():
+                getattr(namespace, self.dest)[key] = int(value)
+                continue
+            getattr(namespace, self.dest)[key] = value
+
 
 def get_default_arguments(description=None):
     """ Extends pytorch_lightning Trainer's arguments with ours """
@@ -333,6 +343,8 @@ def get_default_arguments(description=None):
     parser.add_argument("--sample_triples_ratio", type=float, default=None, help='Sample input data.')
     parser.add_argument("--read_only_few", type=int, default=None,
                         help='READ only first N triples. If 0, read all.')
+    parser.add_argument("--pykeen_model_kwargs", nargs='*',action=ParseDict, help='addtional paramters pass to pykeen_model')
+    parser.add_argument("--use_SLCWALitModule",action="store_true",help='whether to use SLCWALitModule in pykeen or not')
     if description is None:
         return parser.parse_args()
     return parser.parse_args(description)
