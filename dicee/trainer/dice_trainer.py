@@ -278,8 +278,9 @@ class DICE_Trainer:
             self.trainer.dataset = dataset
             self.trainer.form_of_labelling = form_of_labelling
             
+            
             if isinstance(model, LitModule):
-                # model.train_dataloaders.dataset.collate_fn = train_loader.dataset.collate_fn # ddp trainer needs this function
+                model.train_dataloaders.dataset.collate_fn = model.train_dataloaders.dataset.get_collator()
                 self.trainer.fit(model,train_dataloaders=model.train_dataloaders)
                 return model, form_of_labelling           
             

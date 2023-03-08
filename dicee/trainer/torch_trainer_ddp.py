@@ -65,29 +65,27 @@ class TorchDDPTrainer(AbstractTrainer):
         # nodes * gpus
         world_size = self.attributes.num_nodes * torch.cuda.device_count()
 
-        final_batch, rest_epoachs = self.find_batch_size(model,world_size,kwargs)
-        
-        
-        # the following training will use the final_batch_size
-        self.attributes.batch_size = final_batch -1
-        self.attributes.num_epochs = (
-                    rest_epoachs
-                )  # run the rest epochs
+        if self.attributes.use_ddp_batch_finder:
+            final_batch, rest_epoachs = self.find_batch_size(
+                model, world_size, kwargs
+            )  # find the batch size
+            # the following training will use the final_batch_size
+            self.attributes.batch_size = final_batch - 1
+            self.attributes.num_epochs = rest_epoachs  # run the rest epochs
+
         mp.spawn(
-                    fn=distributed_training,
-                    args=(
-                        world_size,
-                        model,
-                        kwargs["train_dataloaders"],
-                        self.callbacks,
-                        self.attributes,
-                    ),
-                    nprocs=world_size,
-                    join=True,
-                )
-        model.load_state_dict(
-                    torch.load("model.pt", map_location=torch.device("cpu"))
-                )
+            fn=distributed_training,
+            args=(
+                world_size,
+                model,
+                kwargs["train_dataloaders"],
+                self.callbacks,
+                self.attributes,
+            ),
+            nprocs=world_size,
+            join=True,
+        )
+        model.load_state_dict(torch.load("model.pt", map_location=torch.device("cpu")))
         os.remove("model.pt")
 
         self.on_fit_end(self, model)
@@ -103,28 +101,24 @@ class TorchDDPTrainer(AbstractTrainer):
             # get the length of dataset from pykeen
             kwargs["train_dataloaders"] = model.train_dataloaders
             # size_of_train_data = len(model.dataset.training.triples)
-        
+
         size_of_train_data = len(kwargs["train_dataloaders"].dataset)
 
         while not oom:
-            
+
             try:
-                
+
                 rest_epoachs = initial_num_epochs - num_of_try_epochs
-                if (
-                    num_of_try_epochs == initial_num_epochs
-                    
-                ):
+                if num_of_try_epochs == initial_num_epochs:
                     # no rest of epochs are left to test the batch_size or
-                    # bacth_size is already bigger than train dataset 
+                    # bacth_size is already bigger than train dataset
                     # oom = False
-                    
-                    return self.attributes.batch_size, rest_epoachs
-                
-                if self.attributes.batch_size > size_of_train_data:
-                    self.attributes.batch_size += (-batch_size)
+
                     return self.attributes.batch_size, rest_epoachs
 
+                if self.attributes.batch_size > size_of_train_data:
+                    self.attributes.batch_size += -batch_size
+                    return self.attributes.batch_size, rest_epoachs
 
                 self.attributes.num_epochs = 1  # only run one epoch
                 mp.spawn(
@@ -150,67 +144,72 @@ class TorchDDPTrainer(AbstractTrainer):
                 oom = True
 
         # the batch_size here can be sure to fit in the memory of GPU
-            # @TODO: there may be another method to find the batach size after oom
+        # @TODO: there may be another method to find the batach size after oom
         if num_of_try_epochs == 0:
-            raise ValueError(f'batch_size of {self.attributes.batch_size} is too large or something wrong in the first try!')
+            raise ValueError(
+                f"batch_size of {self.attributes.batch_size} is too large or something wrong in the first try!"
+            )
 
-
-        
         r = self.attributes.batch_size
         self.attributes.batch_size += (
-                -batch_size
-            )  # reset the batch size to the last add
+            -batch_size
+        )  # reset the batch size to the last add
         l = self.attributes.batch_size
         # r = self.attributes.batch_size
         final_batch = l
         # flag = True
-        
 
-        while l < r and  num_of_try_epochs != initial_num_epochs and self.attributes.batch_size < size_of_train_data and l+1!=r:
+        while (
+            l < r
+            and num_of_try_epochs != initial_num_epochs
+            and self.attributes.batch_size < size_of_train_data
+            and l + 1 != r
+        ):
             #     if (
             #     num_of_try_epochs == initial_num_epochs
             #     or self.attributes.batch_size > size_of_train_data
             # ):
             #     # no rest of epochs are left to test the batch_size or
-            #     # bacth_size is already bigger than train dataset 
+            #     # bacth_size is already bigger than train dataset
             #         flag = False
-            
+
             try:
-                mid = (l+r)//2
+                mid = (l + r) // 2
                 self.attributes.batch_size = mid  # increase the batch size
                 self.attributes.num_epochs = 1  # only run one epoch
                 mp.spawn(
                     fn=distributed_training,
-                                args=(
-                                    world_size,
-                                    model,
-                                    kwargs["train_dataloaders"],
-                                    self.callbacks,
-                                    self.attributes,
-                                ),
-                                nprocs=world_size,
-                                join=True,
-                            )
+                    args=(
+                        world_size,
+                        model,
+                        kwargs["train_dataloaders"],
+                        self.callbacks,
+                        self.attributes,
+                    ),
+                    nprocs=world_size,
+                    join=True,
+                )
                 model.load_state_dict(
-                torch.load("model.pt", map_location=torch.device("cpu"))
-                            )
+                    torch.load("model.pt", map_location=torch.device("cpu"))
+                )
                 os.remove("model.pt")
-                    
+
                 num_of_try_epochs += 1
-                l = mid 
-                final_batch = mid # find the current available batch_size, stop binary search
+                l = mid
+                final_batch = (
+                    mid  # find the current available batch_size, stop binary search
+                )
 
             except Exception:
                 r = mid
 
             rest_epoachs = initial_num_epochs - num_of_try_epochs
-            print(final_batch,rest_epoachs)
+            print(final_batch, rest_epoachs)
         return final_batch, rest_epoachs
-    
+
 
 def distributed_training(
-    rank: int, world_size, model, train_dataset_loader, callbacks,  attrubutes
-    
+    rank: int, world_size, model, train_dataset_loader, callbacks, attrubutes
 ):
     """
     distributed_training is called as the entrypoint of the spawned process.
@@ -230,8 +229,8 @@ def distributed_training(
 
     # for test purpose(not sure if this simulation is correct???)
     # GPU memory managed by the caching allocator can now only allocate 0.01*total_memory memory
-    torch.cuda.set_per_process_memory_fraction(0.0007)
-    
+    torch.cuda.set_per_process_memory_fraction(0.007)
+
     dist.init_process_group(backend=backend, rank=rank, world_size=world_size)
 
     # train_dataset_loader = DataLoader(
@@ -245,14 +244,12 @@ def distributed_training(
     #         sampler=None,
     #     )
 
-
-
     # (1) Create DATA LOADER.
     # train_dataset_loader.sampler=torch.utils.data.distributed.DistributedSampler
-    
+
     # collate_fn of the model of pykeen is None
-    collate_fn=None
-    if isinstance(model,pykeen.contrib.lightning.LitModule):
+    collate_fn = None
+    if isinstance(model, pykeen.contrib.lightning.LitModule):
         collate_fn = model.train_dataloaders.dataset.get_collator()
     else:
         collate_fn = train_dataset_loader.dataset.collate_fn
@@ -289,12 +286,17 @@ def distributed_training(
         torch.save(trainer.model.module.state_dict(), "model.pt")
     dist.destroy_process_group()
 
+
 class DDPTrainer:
-    def __init__(self,
-                 model: torch.nn.Module,
-                 train_dataset_loader: DataLoader,
-                 optimizer: torch.optim.Optimizer,
-                 gpu_id: int, callbacks, num_epochs) -> None:
+    def __init__(
+        self,
+        model: torch.nn.Module,
+        train_dataset_loader: DataLoader,
+        optimizer: torch.optim.Optimizer,
+        gpu_id: int,
+        callbacks,
+        num_epochs,
+    ) -> None:
         self.gpu_id = gpu_id
         self.model = model.to(gpu_id)
         self.train_dataset_loader = train_dataset_loader
@@ -310,7 +312,6 @@ class DDPTrainer:
         # Calculate the amount of free memory in MiB
         free_memory = (total_memory) / (1024 * 1024)
         print(f"Free memory: {free_memory:.2f} MiB")
-
 
         # print('GPU:{self.gpu_id')
         print(f"GPU:{torch.cuda.current_device()}")
@@ -363,7 +364,7 @@ class DDPTrainer:
             raise ValueError("Unexpected batch shape..")
 
     def _run_epoch(self, epoch):
-        
+
         self.train_dataset_loader.sampler.set_epoch(epoch)
         epoch_loss = 0
         i = 0
@@ -389,7 +390,9 @@ class DDPTrainer:
         print(
             f"maximal alocated memory so far: {torch.cuda.memory_allocated(0)//1e6}MB"
         )
-        print(f'batch size to be tried currently: {self.train_dataset_loader.batch_size}')
+        print(
+            f"batch size to be tried currently: {self.train_dataset_loader.batch_size}"
+        )
         return epoch_loss / (i + 1)
 
     def train(self):

@@ -345,6 +345,7 @@ def get_default_arguments(description=None):
                         help='READ only first N triples. If 0, read all.')
     parser.add_argument("--pykeen_model_kwargs", nargs='*',action=ParseDict, help='addtional paramters pass to pykeen_model')
     parser.add_argument("--use_SLCWALitModule",action="store_true",help='whether to use SLCWALitModule in pykeen or not')
+    parser.add_argument("--use_ddp_batch_finder", action="store_true", help="whether to use batch finder in ddp" )
     if description is None:
         return parser.parse_args()
     return parser.parse_args(description)

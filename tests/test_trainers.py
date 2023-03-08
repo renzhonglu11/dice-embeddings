@@ -36,12 +36,13 @@ class TestCallback:
     @pytest.mark.filterwarnings('ignore::UserWarning')
     def test_aconex_torchDDP_trainer(self):
         args = get_default_arguments([])
-        args.model = 'DistMult'
+        # args.model = 'DistMult'
         # args.model = 'Pykeen_DistMult'
+        args.model = 'Pykeen_KG2E'
         args.scoring_technique = 'KvsAll'
         args.path_dataset_folder = 'KGs/KINSHIP'
-        args.num_epochs = 10
-        args.batch_size =32
+        args.num_epochs = 30
+        args.batch_size =20
         args.lr = 0.01
         args.embedding_dim = 64
         args.trainer = 'torchDDP'
@@ -54,6 +55,7 @@ class TestCallback:
         args.optim = 'Adam'
         args.pykeen_model_kwargs = dict(
         embedding_dim=args.embedding_dim, loss="BCEWithLogitsLoss")
+        args.use_ddp_batch_finder = False 
         torch.cuda.empty_cache()
         Execute(args).start()
 

@@ -8,19 +8,18 @@ def template(model_name):
     args.model = model_name
     args.scoring_technique = "NegSample"  # default value of args.eval is 'val_test'
     args.path_dataset_folder = "KGs/Nations"
-    args.num_epochs = 5
-    args.batch_size = 256
+    args.num_epochs = 3
+    args.batch_size = 128
     args.lr = 0.01
-    args.embedding_dim = 64
+    args.embedding_dim = 32
     args.input_dropout_rate = 0.0
     args.hidden_dropout_rate = 0.0
     args.feature_map_dropout_rate = 0.0
     args.sample_triples_ratio = None
     args.read_only_few = None
     args.sample_triples_ratio = None
-    # args.trainer = "PL"
-    args.trainer = "torchCPUTrainer"
-    # args.trainer = "torchDDP"
+    args.trainer = "PL"
+    # args.trainer = "torchCPUTrainer"
     args.neg_ratio = 1
     args.pykeen_model_kwargs = dict(
         embedding_dim=args.embedding_dim, loss="BCEWithLogitsLoss"
