@@ -27,7 +27,7 @@ def get_default_arguments(description=None):
     parser.add_argument("--storage_path", type=str, default='Experiments',
                         help="Embeddings, model, and any other related data will be stored therein.")
     parser.add_argument("--model", type=str,
-                        default="Keci",
+                        default="DistMult",
                         help="Available models: CMult, ConEx, ConvQ, ConvO, DistMult, QMult, OMult, "
                              "Shallom, AConEx, ConEx, ComplEx, DistMult, TransE, Keci")
     parser.add_argument('--p', type=int, default=0,
@@ -91,5 +91,5 @@ def get_default_arguments(description=None):
 if __name__ == '__main__':
     
     Execute(get_default_arguments()).start()
-    # import wandb
-    # wandb.finish()
+    import wandb
+    wandb.finish()

@@ -81,6 +81,7 @@ class TorchTrainer(AbstractTrainer):
             if construct_mini_batch_time:
                 construct_mini_batch_time = start_time - construct_mini_batch_time
             # (2) Forward-Backward-Update.
+            # TODO：just use the _step function in lightning of pykeen to calculate the batch loss
             batch_loss = self._run_batch(i, x_batch, y_batch)
             epoch_loss += batch_loss
             if construct_mini_batch_time:
@@ -133,7 +134,7 @@ class TorchTrainer(AbstractTrainer):
             avg_epoch_loss = self._run_epoch(epoch)
             print(f"Epoch:{epoch + 1} | Loss:{avg_epoch_loss:.8f} | Runtime:{(time.time() - start_time) / 60:.3f}mins")
             
-            # wandb.log({"avg_epoch_loss": avg_epoch_loss,"epoch": epoch})
+            
             
             # Autobatch Finder: Increase the batch size at each epoch's end if memory allows
             #             mem=self.process.memory_info().rss
@@ -151,6 +152,7 @@ class TorchTrainer(AbstractTrainer):
                     f'NumOfDataPoints:{len(self.train_dataloaders.dataset)} | NumOfEpochs:{self.attributes.max_epochs} | LearningRate:{self.model.learning_rate} | BatchSize:{self.train_dataloaders.batch_size} | EpochBatchsize:{len(train_dataloaders)}')
                 counter += 1
 
+            wandb.log({"avg_epoch_loss": avg_epoch_loss,"epoch": epoch})
             self.model.loss_history.append(avg_epoch_loss)
             self.on_train_epoch_end(self, self.model)
         self.on_fit_end(self, self.model)

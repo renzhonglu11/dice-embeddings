@@ -4,6 +4,7 @@ import gc
 from typing import Union
 from dicee.models.base_model import BaseKGE
 from dicee.static_funcs import select_model
+from dicee.static_funcs import init_wandb
 from dicee.callbacks import *
 from dicee.dataset_classes import construct_dataset, reload_dataset
 from .torch_trainer import TorchTrainer
@@ -19,7 +20,7 @@ import copy
 from typing import List, Tuple
 from pykeen.contrib.lightning import LitModule
 import platform
-from pytorch_lightning.loggers import WandbLogger
+
 
 def initialize_trainer(args, callbacks):
     if args.trainer == "torchCPUTrainer":
@@ -39,8 +40,16 @@ def initialize_trainer(args, callbacks):
             backend = "gloo"
         else:
             backend = "nccl"
-        # wandb_logger = WandbLogger()
+        # dataset_name = args.path_dataset_folder.split('/')[1]
+
+        # config = {"epoch":args.num_epochs,"lr":args.lr,"embedding_dim":args.embedding_dim,"optimizer":args.optim}
+        # wandb_logger = WandbLogger(
+        #     project="dice_demo",
+        #     name=f'{args.model}-{dataset_name}',
+        #     config=config
+        # )
         # args.logger = wandb_logger
+        
         return pl.Trainer.from_argparse_args(
             args,
             strategy=DDPStrategy(
@@ -280,12 +289,15 @@ class DICE_Trainer:
             
             
             if isinstance(model, LitModule):
-                model.train_dataloaders.dataset.collate_fn = model.train_dataloaders.dataset.get_collator()
+                # model.train_dataloaders.dataset.collate_fn = model.train_dataloaders.dataset.get_collator()
                 self.trainer.fit(model,train_dataloaders=model.train_dataloaders)
+               
+                print(model.loss_history)
                 return model, form_of_labelling           
             
             self.trainer.fit(model, train_dataloaders=self.initialize_dataloader(self.initialize_dataset(dataset, form_of_labelling)))
-            
+            print("fired..................")
+            print(model.loss_history)
             return model, form_of_labelling
 
 

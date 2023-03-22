@@ -17,18 +17,20 @@ class MyLCWALitModule(LCWALitModule,Pykeen_Module):
 
 
     def training_epoch_end(self, training_step_outputs) -> None:
-        batch_losses = [i["loss"].item() for i in training_step_outputs]
-        avg = sum(batch_losses) / len(batch_losses)
+        # batch_losses = [i["loss"].item() for i in training_step_outputs]
+        # avg = sum(batch_losses) / len(batch_losses)
         
-        log_dict = {
-            'val_loss':avg,
-            "epoch":self.current_epoch+1,
+        # log_dict = {
+        #     'train_loss':avg,
+        #     "epoch":self.current_epoch+1,
             
-        }
+        # }
+        # print(avg)
         # wandb.log(log_dict)
         
-        self.loss_history.append(avg)
+        # self.loss_history.append(avg)
         # self.log('val_loss',avg,on_epoch=True)
+        print(training_step_outputs)
 
     def _dataloader(
         self, triples_factory: CoreTriplesFactory, shuffle: bool = False

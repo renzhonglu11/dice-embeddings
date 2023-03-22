@@ -142,13 +142,14 @@ class TestDefaultParams:
         args.sample_triples_ratio = None
         args.read_only_few = None
         args.num_folds_for_cv = None
-        args.trainer = 'torchCPUTrainer'
-        # args.trainer = 'PL'
+        # args.trainer = 'torchCPUTrainer'
+        args.trainer = 'PL'
         args.neg_ratio = 1
         args.eval_model = 'train_val_test'
         args.num_core = 0
         args.save_embeddings_as_csv = True
         args.normalization = None
+        args.optim = 'Adam'
         Execute(args).start()
 
 

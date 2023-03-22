@@ -456,6 +456,7 @@ def get_pykeen_model(model_name, args, dataset):
             negative_sampler="basic",
             negative_sampler_kwargs=dict(
                 filtered=True,
+                num_negs_per_pos=args["neg_ratio"]
             ),
         )
     else:
@@ -882,3 +883,30 @@ def exponential_function(x: np.ndarray, lam: float, ascending_order=True) -> tor
     assert 0.999 < sum(result) < 1.0001
     result = np.flip(result) if ascending_order else result
     return torch.tensor(result.tolist())
+
+
+def init_wandb(args):
+    import wandb
+    from pytorch_lightning.loggers import WandbLogger
+    
+    dataset_name = args.path_dataset_folder.split('/')[1]
+    config = {"epoch":args.num_epochs,"lr":args.lr,"embedding_dim":args.embedding_dim,"optimizer":args.optim}
+    
+    if args.trainer != "PL":
+          # wandb for the other trainers
+          wandb.init(
+              project="dice_demo", config=config, name=f"{args.model}-{dataset_name}"
+          )
+          
+    else:
+        wandb_logger = WandbLogger(
+            project="dice_demo",
+            name=f'{args.model}-{dataset_name}',
+            config=config
+        )
+        args.logger = wandb_logger
+    
+    return args
+
+
+  

@@ -29,7 +29,7 @@ def input_data_type_checking(train_set_idx, valid_set_idx, test_set_idx, entity_
 def create_tensor(x: np.ndarray):
     str_type = str(np.dtype(x.dtype))
     if str_type == 'int8':
-        return torh.CharTensor(x)
+        return torch.CharTensor(x)
     elif str_type == 'int16':
         return torch.ShortTensor(x)
     elif str_type == 'int32':
