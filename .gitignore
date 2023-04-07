@@ -5,3 +5,5 @@ KGs/
 Experiments/
 vscode/*
 wandb/*
+benchmarks/Experiments/
+benchmarks/wandb/

@@ -131,7 +131,7 @@ class TestDefaultParams:
         # args.num_epochs = 1
         args.scoring_technique = 'NegSample'
         args.path_dataset_folder = 'KGs/UMLS'
-        args.num_epochs = 50
+        args.num_epochs = 10
         args.batch_size = 1024
         args.embedding_dim = 64
         args.lr = 0.01
@@ -150,6 +150,15 @@ class TestDefaultParams:
         args.save_embeddings_as_csv = True
         args.normalization = None
         args.optim = 'Adam'
+        
+        import wandb
+        config = {
+        "epoch":args.num_epochs,"lr":args.lr,"embedding_dim":args.embedding_dim
+    }
+        dataset = args.path_dataset_folder.split('/')[1]
+        wandb.setup(wandb.Settings(program="test_pykeen_model.py", program_relpath="test_pykeen_model.py"))
+        wandb.init(project="dice_demo",config=config,name=f'{args.model}-{dataset}')
+        
         Execute(args).start()
 
 

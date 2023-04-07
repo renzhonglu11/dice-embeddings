@@ -262,12 +262,13 @@ class BaseKGE(pl.LightningModule):
         avg = sum(batch_losses) / len(batch_losses)
         log_dict = {
             'train_loss':avg,
-            "epoch":self.current_epoch+1,
+            "epochs":self.current_epoch+1,
             
         }
         print(avg)
         import wandb
         wandb.log(log_dict)
+
 
         self.loss_history.append(avg)
 

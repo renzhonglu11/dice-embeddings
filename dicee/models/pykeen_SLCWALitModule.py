@@ -18,11 +18,15 @@ class MySLCWALitModule(SLCWALitModule, Pykeen_Module):
         avg = sum(batch_losses) / len(batch_losses)
 
         log_dict = {
-            'train_loss':avg,
-            
+            'loss':avg,
+            "epoch":self.current_epoch+1,
         }
+        # print(avg)
+        # wandb.log(log_dict)
         print(avg)
+        # log_dict = {
+        #     'train_loss':training_step_outputs,
+        #     "epoch":self.current_epoch+1,
+        # }
         wandb.log(log_dict)
-        self.loss_history.append(avg)
-        
 

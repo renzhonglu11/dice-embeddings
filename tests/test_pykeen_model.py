@@ -94,7 +94,7 @@ def test_fixedModel(model_name):
     # }
     # dataset = args.path_dataset_folder.split('/')[1]
     # wandb.setup(wandb.Settings(program="test_pykeen_model.py", program_relpath="test_pykeen_model.py"))
-    # c(project="dice_demo",config=config,name=f'{args.model}-{dataset}')
+    # wandb.init(project="dice_demo",config=config,name=f'{args.model}-{dataset}')
     Execute(args).start()
 
 

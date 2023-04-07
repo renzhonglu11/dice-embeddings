@@ -293,11 +293,21 @@ class DICE_Trainer:
                 self.trainer.fit(model,train_dataloaders=model.train_dataloaders)
                
                 print(model.loss_history)
+                            
                 return model, form_of_labelling           
             
             self.trainer.fit(model, train_dataloaders=self.initialize_dataloader(self.initialize_dataset(dataset, form_of_labelling)))
-            print("fired..................")
+           
             print(model.loss_history)
+            import wandb
+            data = []
+            for i in range(self.args.num_epochs):
+              data.append([model.loss_history[i],i+1])
+            
+            
+            table = wandb.Table(data=data, columns=["loss", "step"])
+            line_plot = wandb.plot.line(table, x='step', y='loss', title='Line Plot')
+            wandb.log({'line_1': line_plot})
             return model, form_of_labelling
 
 
