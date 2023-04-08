@@ -302,6 +302,7 @@ class DICE_Trainer:
             import wandb
             data = []
             for i in range(self.args.num_epochs):
+              
               data.append([model.loss_history[i],i+1])
             
             

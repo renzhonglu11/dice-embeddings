@@ -1,49 +1,4 @@
-# # Get a training dataset
-# from pykeen.datasets import Nations
-# dataset = Nations()
-# training_triples_factory = dataset.training
 
-# # Pick a model
-# from pykeen.models import TransE
-# model = TransE(triples_factory=training_triples_factory)
-
-# # Pick an optimizer from Torch
-# from torch.optim import Adam
-# optimizer = Adam(params=model.get_grad_params())
-
-# # Pick a training approach (sLCWA or LCWA)
-# from pykeen.training import SLCWATrainingLoop
-# training_loop = SLCWATrainingLoop(
-#     model=model,
-#     triples_factory=training_triples_factory,
-#     optimizer=optimizer,
-# )
-
-# # Train like Cristiano Ronaldo
-# _ = training_loop.train(
-#     triples_factory=training_triples_factory,
-#     num_epochs=5,
-#     batch_size=256,
-# )
-
-# # Pick an evaluator
-# from pykeen.evaluation import RankBasedEvaluator
-# evaluator = RankBasedEvaluator()
-
-# # Get triples to test
-# mapped_triples = dataset.testing.mapped_triples
-
-# # Evaluate
-# results = evaluator.evaluate(
-#     model=model,
-#     mapped_triples=mapped_triples,
-#     batch_size=1024,
-#     additional_filter_triples=[
-#         dataset.training.mapped_triples,
-#         dataset.validation.mapped_triples,
-#     ],
-# )
-# # print(results)
 
 
 
@@ -54,10 +9,24 @@ from pykeen.sampling import BasicNegativeSampler
 
 pipeline_result = pipeline(
     model='Distmult',
+    model_kwargs=dict(
+      embedding_dim=64,
+      
+    ),
     dataset='umls',
     training_loop='sLCWA',
+    training_kwargs=dict(
+      batch_size = 128,  
+      
+    ),
     negative_sampler=BasicNegativeSampler,
+    negative_sampler_kwargs=dict(
+      num_negs_per_pos = 32,
+    ),
     optimizer = 'adam',
+    optimizer_kwargs = dict(
+      lr = 0.01  
+    ),
     epochs = 100,
     evaluator='RankBasedEvaluator',
     result_tracker='wandb',
@@ -67,5 +36,104 @@ pipeline_result = pipeline(
 )
 
 
-pipeline_result.save_to_directory('nations_transe')
+pipeline_result.save_to_directory('pykeen_Distmult_umls')
+
+
+pipeline_result = pipeline(
+    model='ComplEx',
+  model_kwargs=dict(
+      embedding_dim=64,
+      
+    ),
+    dataset='umls',
+    training_loop='sLCWA',
+    training_kwargs=dict(
+      batch_size = 256,  
+      
+    ),
+    negative_sampler=BasicNegativeSampler,
+    negative_sampler_kwargs=dict(
+      num_negs_per_pos = 32,
+    ),
+    optimizer = 'adam',
+    optimizer_kwargs = dict(
+      lr = 0.1  
+    ),
+    epochs = 100,
+    evaluator='RankBasedEvaluator',
+    result_tracker='wandb',
+    result_tracker_kwargs=dict(
+        project='pykeen_project',
+    ),
+)
+
+
+pipeline_result.save_to_directory('pykeen_ComplEx_umls')
+
+
+
+
+
+pipeline_result = pipeline(
+    model='Distmult',
+    model_kwargs=dict(
+      embedding_dim=128,
+      
+    ),
+    dataset='kinships',
+    training_loop='sLCWA',
+    training_kwargs=dict(
+      batch_size = 256,  
+      
+    ),
+    negative_sampler=BasicNegativeSampler,
+    negative_sampler_kwargs=dict(
+      num_negs_per_pos = 32,
+    ),
+    optimizer = 'adam',
+    optimizer_kwargs = dict(
+      lr = 0.01  
+    ),
+    epochs = 100,
+    evaluator='RankBasedEvaluator',
+    result_tracker='wandb',
+    result_tracker_kwargs=dict(
+        project='pykeen_project',
+    ),
+)
+
+
+pipeline_result.save_to_directory('pykeen_Distmult_kinships')
+
+
+pipeline_result = pipeline(
+    model='ComplEx',
+  model_kwargs=dict(
+      embedding_dim=128,
+      
+    ),
+    dataset='kinships',
+    training_loop='sLCWA',
+    training_kwargs=dict(
+      batch_size = 128,  
+      
+    ),
+    negative_sampler=BasicNegativeSampler,
+    negative_sampler_kwargs=dict(
+      num_negs_per_pos = 32,
+    ),
+    optimizer = 'adam',
+    optimizer_kwargs = dict(
+      lr = 0.1  
+    ),
+    epochs = 100,
+    evaluator='RankBasedEvaluator',
+    result_tracker='wandb',
+    result_tracker_kwargs=dict(
+        project='pykeen_project',
+    ),
+)
+
+
+pipeline_result.save_to_directory('pykeen_ComplEx_kinships')
 

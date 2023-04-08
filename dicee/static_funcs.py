@@ -895,12 +895,12 @@ def init_wandb(args):
     if args.trainer != "PL":
           # wandb for the other trainers
           wandb.init(
-              project="dice_demo", config=config, name=f"{args.model}-{dataset_name}"
+              project="performance_test", config=config, name=f"{args.model}-{dataset_name}"
           )
           
     else:
         wandb_logger = WandbLogger(
-            project="dice_demo",
+            project="performance_test",
             name=f'{args.model}-{dataset_name}',
             config=config
         )

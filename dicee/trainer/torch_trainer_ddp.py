@@ -21,7 +21,7 @@ import pykeen
 
 BACKEND_GLOO = "gloo"
 BACKEND_NCCL = "nccl"
-
+loss_history = []
 
 def print_peak_memory(prefix, device):
     if device == 0:
@@ -87,7 +87,16 @@ class TorchDDPTrainer(AbstractTrainer):
         )
         model.load_state_dict(torch.load("model.pt", map_location=torch.device("cpu")))
         os.remove("model.pt")
-
+        
+        import pickle
+        f_read = open('loss_history.pkl','rb')
+        loss_history_dict = pickle.load(f_read)
+        print("..............................")
+        print(loss_history_dict)
+        model.loss_history = loss_history_dict['loss_history']
+        f_read.close()
+        os.remove('loss_history.pkl')
+        
         self.on_fit_end(self, model)
 
     def find_batch_size(self, model, world_size, kwargs):
@@ -282,7 +291,14 @@ def distributed_training(
     trainer.train()
 
     if rank == 0:
-        trainer.model.loss_history = trainer.loss_history
+        # trainer.model.module.loss_history = trainer.loss_history
+        
+        loss_history_dict = {'loss_history':trainer.loss_history}
+        import pickle
+        f_save = open('loss_history.pkl','wb')
+        pickle.dump(loss_history_dict,f_save)
+        f_save.close
+        
         torch.save(trainer.model.module.state_dict(), "model.pt")
     dist.destroy_process_group()
 
@@ -405,6 +421,9 @@ class DDPTrainer:
                 print(
                     f"Epoch:{epoch + 1} | Loss:{epoch_loss:.8f} | Runtime:{(time.time() - start_time) / 60:.3f}mins"
                 )
-                self.model.module.loss_history.append(epoch_loss)
+                
+                # self.model.module.loss_history.append(epoch_loss)
+                self.loss_history.append(epoch_loss)
+                
                 for c in self.callbacks:
                     c.on_train_epoch_end(None, self.model.module)

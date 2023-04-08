@@ -477,7 +477,8 @@ def get_default_arguments(description=None):
     )
     parser.add_argument(
         "--use_ddp_batch_finder",
-        action="store_true",
+        type=bool,
+        default=False,
         help="whether to use batch finder in ddp",
     )
     if description is None:

@@ -32,7 +32,8 @@ class TorchTrainer(AbstractTrainer):
         torch.manual_seed(self.attributes.seed_for_computation)
         torch.cuda.manual_seed_all(self.attributes.seed_for_computation)
         if self.attributes.gpus and torch.cuda.is_available():
-            self.device = torch.device(f'cuda:{self.attributes.gpus}' if torch.cuda.is_available() else 'cpu')
+            # self.device = torch.device(f'cuda:{self.attributes.gpus}' if torch.cuda.is_available() else 'cpu')
+            self.device = torch.device(f'cuda:0' if torch.cuda.is_available() else 'cpu')
         else:
             self.device = 'cpu'
         # https://psutil.readthedocs.io/en/latest/#psutil.Process

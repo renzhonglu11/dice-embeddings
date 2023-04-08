@@ -82,6 +82,12 @@ def get_default_arguments(description=None):
     parser.add_argument("--use_SLCWALitModule",action="store_true",help='whether to use SLCWALitModule in pykeen or not')
     # parser.add_argument("--accelerator",type=str,default='gpu')
     # parser.add_argument("--devices", type=int,default=1)
+    parser.add_argument(
+        "--use_ddp_batch_finder",
+        type=bool,
+        default=False,
+        help="whether to use batch finder in ddp",
+    )
     
     if description is None:
         return parser.parse_args()
