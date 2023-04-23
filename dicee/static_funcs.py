@@ -443,6 +443,7 @@ def get_pykeen_model(model_name, args, dataset):
     else:
         passed_model = actual_name
     # initialize module for pytorch-lightning trainer
+    print(args["use_SLCWALitModule"])
     if args["use_SLCWALitModule"]:
         model = MySLCWALitModule(
             dataset=_dataset,
@@ -894,6 +895,7 @@ def init_wandb(args):
     
     if args.trainer != "PL":
           # wandb for the other trainers
+          # performance_test
           wandb.init(
               project="performance_test", config=config, name=f"{args.model}-{dataset_name}"
           )

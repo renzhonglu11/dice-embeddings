@@ -6,4 +6,9 @@ Experiments/
 vscode/*
 wandb/*
 benchmarks/Experiments/
+benchmarks/performance_test_1st/
+benchmarks/pykeen_bigdataset/
+benchmarks/pykeen_cpu/
+benchmarks/pykeen_gpu/
 benchmarks/wandb/
+benchmarks/dice/wandb/
